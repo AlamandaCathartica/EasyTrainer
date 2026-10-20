@@ -277,9 +277,9 @@
   .slider-row.with-field input[type=range]{grid-column:1;}
   input[type=range]{
     -webkit-appearance:none;appearance:none;width:100%;height:28px;margin:0;background:transparent;cursor:pointer;
-    --pct:50%;
+    --f:0.5;
   }
-  input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(to right,var(--md-sys-color-primary) var(--pct),var(--md-sys-color-surface-container-highest) var(--pct));}
+  input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(to right,var(--md-sys-color-primary) calc(10px + (100% - 20px) * var(--f)),var(--md-sys-color-surface-container-highest) calc(10px + (100% - 20px) * var(--f)));}
   input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--md-sys-color-surface-container-highest);}
   input[type=range]::-moz-range-progress{height:6px;border-radius:3px;background:var(--md-sys-color-primary);}
   input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;margin-top:-7px;border-radius:50%;background:var(--md-sys-color-primary);border:0;box-shadow:0 1px 3px rgba(0,0,0,.35);}
@@ -417,7 +417,46 @@
     padding:14px 16px;border-radius:8px;box-shadow:0 3px 8px rgba(0,0,0,.35);transition:transform .25s ease;
   }
   .snackbar.show{transform:translate(-50%,0);}
-  .conn{position:fixed;left:12px;bottom:12px;z-index:30;}
+  /* connection-lost dialog (Material 3 basic dialog, error-colored, modal) */
+  .scrim{
+    position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:16px;
+    background:color-mix(in srgb,var(--md-sys-color-scrim,#000) 40%,transparent);
+    backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+    opacity:0;visibility:hidden;transition:opacity .25s ease,visibility 0s linear .25s;
+  }
+  .scrim.show{opacity:1;visibility:visible;transition:opacity .25s ease;}
+  .scrim[hidden]{display:none;}
+  .dialog{
+    box-sizing:border-box;width:min(560px,100%);max-height:calc(100vh - 32px);overflow:auto;
+    display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;
+    padding:40px 32px 24px;border-radius:28px;
+    background:var(--md-sys-color-error-container);color:var(--md-sys-color-on-error-container);
+    box-shadow:0 8px 12px 6px rgba(0,0,0,.15),0 4px 4px rgba(0,0,0,.3);
+    transform:scale(.88) translateY(12px);opacity:0;transition:transform .3s cubic-bezier(.2,0,0,1.2),opacity .2s ease;
+  }
+  .scrim.show .dialog{transform:none;opacity:1;}
+  .dialog .d-icon{width:96px;height:96px;margin-bottom:8px;fill:currentColor;}
+  .dialog h2{margin:0;font-size:28px;line-height:36px;font-weight:500;font-family:inherit;}
+  .dialog .d-sub{margin:0;font-size:16px;line-height:24px;font-weight:400;font-family:inherit;opacity:.85;}
+  .dialog .d-info{
+    align-self:stretch;margin:16px 0 0;padding:14px 20px;border-radius:20px;text-align:left;
+    background:color-mix(in srgb,var(--md-sys-color-on-error-container) 10%,transparent);
+    font-size:16px;line-height:24px;font-weight:500;font-family:var(--font-mono);
+  }
+  .dialog .d-info div{display:flex;justify-content:space-between;gap:12px;white-space:nowrap;}
+  @media (max-width:480px){.dialog{padding:32px 20px 20px;}.dialog h2{font-size:24px;line-height:32px;}.dialog .d-info{font-size:14px;padding:12px 16px;}}
+  .dialog .d-info span:first-child{opacity:.75;font-family:inherit;font-weight:400;}
+  .dialog .d-actions{align-self:stretch;display:flex;justify-content:flex-end;margin-top:16px;}
+  .dialog .d-btn{
+    border:0;cursor:pointer;height:40px;padding:0 24px;border-radius:20px;font-size:14px;line-height:20px;font-weight:500;font-family:inherit;
+    background:var(--md-sys-color-error);color:var(--md-sys-color-on-error);
+  }
+  .dialog .d-btn:hover{box-shadow:0 1px 3px rgba(0,0,0,.35);filter:brightness(1.08);}
+  .dialog .d-btn:focus-visible{outline:2px solid var(--md-sys-color-on-error-container);outline-offset:2px;}
+  .dialog .d-spin{display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:-2px;border-radius:50%;
+    border:2px solid currentColor;border-right-color:transparent;animation:dspin 1s linear infinite;}
+  @keyframes dspin{to{transform:rotate(360deg);}}
+  @media (prefers-reduced-motion:reduce){.scrim,.dialog{transition:none;}.dialog .d-spin{animation:none;}}
 </style>
 </head>
 <body data-pane="setup">
@@ -570,7 +609,18 @@
 </div>
 
 <div class="snackbar t-body" id="snack" role="status" aria-live="polite"></div>
-<div class="conn" id="conn" hidden><div class="banner error t-small">Lost connection to the GUI server. Retrying…</div></div>
+<div class="scrim" id="conn" hidden>
+  <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="connTitle" aria-describedby="connInfo">
+    <svg class="d-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+    <h2 id="connTitle">Lost connection to the server.</h2>
+    <p class="d-sub"><span class="d-spin" aria-hidden="true"></span>Retrying…</p>
+    <div class="d-info" id="connInfo">
+      <div><span>Error code</span><span id="connCode">–</span></div>
+      <div><span>Last connected</span><span id="connLast">–</span></div>
+    </div>
+    <div class="d-actions"><button class="d-btn" id="connRetry" type="button">Retry now</button></div>
+  </div>
+</div>
 
 <script>
 "use strict";
@@ -762,7 +812,7 @@ function coerce(key, raw, input) {
   }
   return raw;
 }
-function setPct(r) { const mn = +r.min, mx = +r.max; r.style.setProperty("--pct", ((r.value - mn) / (mx - mn) * 100) + "%"); }
+function setPct(r) { const mn = +r.min, mx = +r.max; r.style.setProperty("--f", mx > mn ? (r.value - mn) / (mx - mn) : 0); }
 
 function writeControls(key) {
   const v = S.cfg[key];
@@ -1036,7 +1086,8 @@ function drawLoss() {
     drawLoss();
   });
   c.addEventListener("pointerleave", () => { S.hover = null; drawLoss(); });
-  $("#smoothRange").addEventListener("input", (e) => { $("#smoothVal").textContent = (+e.target.value).toFixed(2); recomputeSmooth(); drawLoss(); });
+  setPct($("#smoothRange"));
+  $("#smoothRange").addEventListener("input", (e) => { setPct(e.target); $("#smoothVal").textContent = (+e.target.value).toFixed(2); recomputeSmooth(); drawLoss(); });
   $("#logScale").addEventListener("change", drawLoss);
   new ResizeObserver(() => { drawLoss(); drawSparks(); }).observe(c.parentElement);
   $("#exportLoss").addEventListener("click", () => {
@@ -1312,13 +1363,38 @@ async function poll() {
     const r = await fetch(`/api/poll?run=${S.run}&m=${S.cur.m}&l=${S.cur.l}&s=${S.cur.s}`, { cache: "no-store" });
     if (!r.ok) throw new Error("HTTP " + r.status);
     handle(await r.json());
-    if (!S.connected) { S.connected = true; $("#conn").hidden = true; }
+    S.fails = 0; S.lastOk = new Date();
+    if (!S.connected) { S.connected = true; connDialog(false); }
   } catch (e) {
-    if (S.connected) { S.connected = false; $("#conn").hidden = false; }
+    S.fails = (S.fails || 0) + 1;
+    S.errCode = /^HTTP (\d+)/.test(e.message) ? "HTTP " + e.message.slice(5) : "Network error";
+    if (S.connected && S.fails >= 2) { S.connected = false; connDialog(true); }   // 2 misses in a row: avoids flicker
+    else if (!S.connected) connDialog(true);                                       // keep the code up to date
   } finally {
-    setTimeout(poll, document.hidden ? 3000 : 1000);
+    S.pollT = setTimeout(poll, document.hidden ? 3000 : 1000);
   }
 }
+/* Modal "connection lost" dialog: dims the page and makes everything behind it inert (not clickable/focusable). */
+function connDialog(show) {
+  const box = $("#conn");
+  if (show) {
+    $("#connCode").textContent = S.errCode || "–";
+    $("#connLast").textContent = S.lastOk ? S.lastOk.toISOString().slice(11, 19) + " UTC" : "never";
+    if (!box.classList.contains("show")) {
+      S.prevFocus = document.activeElement;
+      box.hidden = false; void box.offsetWidth; box.classList.add("show");
+      [...document.body.children].forEach((n) => { if (n !== box && n.tagName !== "SCRIPT") n.inert = true; });
+      $("#connRetry").focus();
+    }
+  } else {
+    box.classList.remove("show");
+    [...document.body.children].forEach((n) => { n.inert = false; });
+    setTimeout(() => { if (S.connected) box.hidden = true; }, 300);
+    if (S.prevFocus && S.prevFocus.focus) try { S.prevFocus.focus(); } catch (e) {}
+  }
+}
+$("#connRetry").addEventListener("click", () => { clearTimeout(S.pollT); poll(); });
+$("#conn").addEventListener("keydown", (e) => { if (e.key === "Tab") { e.preventDefault(); $("#connRetry").focus(); } });
 
 /* ------------------------------------------------------------------ boot */
 async function boot() {
