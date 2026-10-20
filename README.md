@@ -9,9 +9,7 @@ You can support me on [Buy me a coffee](https://buymeacoffee.com/holostrawberry)
 | |🇬🇧 English|🇪🇸 Spanish|
 |:--|:-:|:-:|
 | 📊 **Dataset Maker** | [![Open in Colab](https://raw.githubusercontent.com/hollowstrawberry/kohya-colab/main/assets/colab-badge.svg)](https://colab.research.google.com/github/hollowstrawberry/kohya-colab/blob/main/Dataset_Maker.ipynb) | [![Abrir en Colab](https://raw.githubusercontent.com/hollowstrawberry/kohya-colab/main/assets/colab-badge-spanish.svg)](https://colab.research.google.com/github/hollowstrawberry/kohya-colab/blob/main/Spanish_Dataset_Maker.ipynb) |
-| ⭐ **Lora Trainer** | [![Open in Colab](https://raw.githubusercontent.com/hollowstrawberry/kohya-colab/main/assets/colab-badge.svg)](https://colab.research.google.com/github/hollowstrawberry/kohya-colab/blob/main/Lora_Trainer.ipynb) | [![Abrir en Colab](https://raw.githubusercontent.com/hollowstrawberry/kohya-colab/main/assets/colab-badge-spanish.svg)](https://colab.research.google.com/github/hollowstrawberry/kohya-colab/blob/main/Spanish_Lora_Trainer.ipynb) |
 | 🌟 **XL Lora Trainer** | [![Open in Colab](https://raw.githubusercontent.com/hollowstrawberry/kohya-colab/main/assets/colab-badge.svg)](https://colab.research.google.com/github/hollowstrawberry/kohya-colab/blob/main/Lora_Trainer_XL.ipynb) | - |
-| 🌟 **Legacy XL Trainer** | [![Open in Colab](https://raw.githubusercontent.com/hollowstrawberry/kohya-colab/main/assets/colab-badge.svg)](https://colab.research.google.com/github/hollowstrawberry/kohya-colab/blob/main/Lora_Trainer_XL_Legacy.ipynb) | - |
 | **Lora making Guide** | [Click Here](https://civitai.com/models/22530) | - |
 | **Stable Diffusion guide** | [Click Here](https://huggingface.co/hollowstrawberry/stable-diffusion-guide/blob/main/README.md#index) | [Click Aquí](https://huggingface.co/hollowstrawberry/stable-diffusion-guide/blob/main/spanish.md#index) |
 
@@ -39,3 +37,23 @@ You can support me on [Buy me a coffee](https://buymeacoffee.com/holostrawberry)
 &nbsp;
 
 ![Dataset Maker screenshot](assets/datasetmaker.png)
+
+
+### 🧊 Offline bundle (not used by the GUI)
+
+`offline_bundle.py`, `Build_Offline_Bundle.ipynb` and the `train_network*_wrapper.py` files froze the install of the SD1.5 / legacy XL trainers, which were removed from this copy. They are kept only for reference. The XL trainer installs online (`colab_install.sh`), exactly like `Lora_Trainer_XL.ipynb`.
+
+### 🖥️ GUI (loss / GPU / CPU / log monitor)
+
+`gui/` is a Material 3 web interface for the Lora trainer (same pipeline and settings as `Lora_Trainer_XL.ipynb`). It needs **no extra packages** (Python standard library only; uses `nvidia-smi` and `psutil` if present) and no internet for the page itself.
+
+* **Setup**: all trainer options as forms; live dataset check (images, steps/epoch, total steps); Prodigy/DAdapt overrides shown.
+* **Overview**: progress, step/epoch/speed/ETA, interactive loss chart (smoothing, log scale, epoch markers, CSV export), GPU utilisation / VRAM / temperature / power / clocks, CPU (per core), RAM, trainer process and disk, with history sparklines.
+* **Log**: live trainer output with filter, warning/error filters, follow, wrap, download.
+* **Outputs**: saved epochs with download. **System & config**: hardware/software versions, paths, and a preview of the generated TOML files.
+
+**Colab:** upload `gui/` to `MyDrive/Loras/_gui/gui/`, then run `GUI_Trainer.ipynb`; it opens a free Cloudflare tunnel link.
+**Local:** `python gui/kohya_gui.py` and open http://127.0.0.1:7860 (`--root`, `--port`, `--tunnel` available).
+**Preview without a GPU:** `python gui/kohya_gui.py --demo` simulates a training run.
+
+Install modes: *Install (online)* (default, like the notebook) or *Already installed*. The loss curve comes from the trainer's `avr_loss` output; the server only listens on localhost unless you pass `--host`.
