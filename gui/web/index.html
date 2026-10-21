@@ -15,7 +15,7 @@
     document.documentElement.setAttribute("data-theme", t);
   })();
 </script>
-<title>Kohya Trainer XL</title>
+<title>EasyTrainer</title>
 <style>
   /* =====================================================================
      THEME - Material 3 baseline scheme (seed #6750A4), same tokens as Plane.
@@ -417,6 +417,26 @@
     padding:14px 16px;border-radius:8px;box-shadow:0 3px 8px rgba(0,0,0,.35);transition:transform .25s ease;
   }
   .snackbar.show{transform:translate(-50%,0);}
+  /* ---- mode switch + dataset maker ---- */
+  .mode-seg{margin-top:12px;max-width:320px;}
+  body[data-mode="train"] [data-mode-only="data"], body[data-mode="data"] [data-mode-only="train"]{display:none !important;}
+  .dmpanes > section{display:none;flex-direction:column;gap:12px;padding-top:12px;}
+  .dmpanes > section.active{display:flex;}
+  @media (min-width: 960px){ .dmpanes{flex:1;min-height:0;overflow:auto;padding-right:4px;} }
+  .dm-tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}
+  @media (max-width:760px){.dm-tiles{grid-template-columns:repeat(2,1fr);}}
+  .tagbars{display:flex;flex-direction:column;gap:2px;}
+  .tagbar{display:grid;grid-template-columns:minmax(90px,190px) 1fr 84px;align-items:center;gap:12px;min-height:30px;
+    padding:2px 8px;border-radius:8px;}
+  .tagbar:hover{background:color-mix(in srgb,var(--md-sys-color-on-surface) 6%,transparent);}
+  .tagbar .nm{font:400 13px/18px var(--font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .tagbar .track{height:14px;border-radius:7px;background:var(--md-sys-color-surface-container-highest);overflow:hidden;}
+  .tagbar .track > i{display:block;height:100%;border-radius:7px;background:var(--md-sys-color-primary);min-width:3px;
+    transition:width .5s cubic-bezier(.2,0,0,1);}
+  .tagbar .ct{font:500 13px/18px var(--font-mono);text-align:right;white-space:nowrap;}
+  .tagbar .ct small{color:var(--md-sys-color-on-surface-variant);font-weight:400;margin-left:6px;}
+  @media (max-width:520px){.tagbar{grid-template-columns:minmax(70px,120px) 1fr 36px;gap:8px;}.tagbar .ct small{display:none;}}
+  @media (prefers-reduced-motion:reduce){.tagbar .track > i{transition:none;}}
   /* connection-lost dialog (Material 3 basic dialog, error-colored, modal) */
   .scrim{
     position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:16px;
@@ -427,7 +447,7 @@
   .scrim.show{opacity:1;visibility:visible;transition:opacity .25s ease;}
   .scrim[hidden]{display:none;}
   .dialog{
-    box-sizing:border-box;width:min(560px,100%);max-height:calc(100vh - 32px);overflow:auto;
+    touch-action:auto;box-sizing:border-box;width:min(560px,100%);max-height:calc(100vh - 32px);overflow:auto;
     display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;
     padding:40px 32px 24px;border-radius:28px;
     background:var(--md-sys-color-error-container);color:var(--md-sys-color-on-error-container);
@@ -446,7 +466,11 @@
   .dialog .d-info div{display:flex;justify-content:space-between;gap:12px;white-space:nowrap;}
   @media (max-width:480px){.dialog{padding:32px 20px 20px;}.dialog h2{font-size:24px;line-height:32px;}.dialog .d-info{font-size:14px;padding:12px 16px;}}
   .dialog .d-info span:first-child{opacity:.75;font-family:inherit;font-weight:400;}
-  .dialog .d-actions{align-self:stretch;display:flex;justify-content:flex-end;margin-top:16px;}
+  .dialog .d-actions{align-self:stretch;display:flex;justify-content:space-between;gap:12px;margin-top:16px;}
+  .dialog .d-btn.tonal{background:transparent;color:var(--md-sys-color-on-error-container);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--md-sys-color-on-error-container) 55%,transparent);}
+  .dialog .d-btn.tonal:hover{background:color-mix(in srgb,var(--md-sys-color-on-error-container) 10%,transparent);box-shadow:inset 0 0 0 1px var(--md-sys-color-on-error-container);filter:none;}
+  html.conn-lock,html.conn-lock body{overflow:hidden !important;}
+  .scrim{overscroll-behavior:contain;touch-action:none;}
   .dialog .d-btn{
     border:0;cursor:pointer;height:40px;padding:0 24px;border-radius:20px;font-size:14px;line-height:20px;font-weight:500;font-family:inherit;
     background:var(--md-sys-color-error);color:var(--md-sys-color-on-error);
@@ -474,12 +498,16 @@
   <!-- ====================== LEFT: SETUP ====================== -->
   <div class="controls">
     <header class="topbar">
-      <h1 class="t-headline">Kohya Trainer XL</h1>
-      <p class="t-body">Train an SDXL Lora and watch loss, GPU/CPU load and logs live.</p>
-      <div class="tags" id="tags"><span class="tag t-label">Python backend · stdlib only</span></div>
+      <h1 class="t-headline">EasyTrainer</h1>
+      <div class="tags" id="tags"></div>
+      <div class="seg mode-seg" id="modeSeg" role="group" aria-label="Mode">
+        <button type="button" data-mode="train" aria-pressed="true">Trainer</button>
+        <button type="button" data-mode="data" aria-pressed="false">Dataset maker</button>
+      </div>
     </header>
-    <div id="formRoot"></div>
-    <div class="section">
+    <div id="formRoot" data-mode-only="train"></div>
+    <div id="dmForm" data-mode-only="data"></div>
+    <div class="section" data-mode-only="train">
       <div class="button-stack" style="display:flex;flex-direction:column;gap:12px">
         <button class="btn filled big" data-act="start" type="button"></button>
         <button class="btn danger big" data-act="stop" type="button"></button>
@@ -488,7 +516,7 @@
   </div>
 
   <!-- ====================== RIGHT: MONITOR ====================== -->
-  <div class="monitor-wrap">
+  <div class="monitor-wrap" data-mode-only="train">
     <div class="monitor">
 
       <div class="panel run-card">
@@ -606,6 +634,60 @@
       </div>
     </div>
   </div>
+  <div class="monitor-wrap" id="dmWrap" data-mode-only="data">
+    <div class="monitor">
+      <div class="panel run-card">
+        <div class="row between" style="flex-wrap:wrap">
+          <div class="row" style="min-width:0">
+            <span class="status" id="dmChip">Idle</span>
+            <span class="t-body grow" id="dmPhase" style="color:var(--md-sys-color-on-surface-variant);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+          </div>
+          <div class="row">
+            <button class="btn filled small" data-dm="start" type="button"></button>
+            <button class="btn danger small" data-dm="stop" type="button"></button>
+          </div>
+        </div>
+        <div class="progress" id="dmProgress"><div></div></div>
+        <div class="row between t-small" style="color:var(--md-sys-color-on-surface-variant)">
+          <span id="dmProgLeft">Not started</span><span id="dmProgRight"></span>
+        </div>
+        <div id="dmError" class="banner error t-body" role="alert"></div>
+      </div>
+
+      <div class="tabs" role="tablist" id="dmTabs">
+        <button class="tab" role="tab" data-dmtab="graph" aria-selected="true">Tag graph</button>
+        <button class="tab" role="tab" data-dmtab="log" aria-selected="false">Log</button>
+      </div>
+      <div class="dmpanes">
+        <section id="dm-graph" class="active">
+          <div class="panel tight">
+            <div class="row between" style="flex-wrap:wrap">
+              <h2 class="panel-title t-title">Tag frequency</h2>
+              <button class="btn tonal small" id="dmRefresh" type="button">Refresh</button>
+            </div>
+            <div class="dm-tiles" id="dmTiles">
+              <div class="stat"><div class="k t-small">Images</div><div class="v" id="dmImages">–</div></div>
+              <div class="stat"><div class="k t-small">With captions</div><div class="v" id="dmCaptioned">–</div></div>
+              <div class="stat"><div class="k t-small">Unique tags</div><div class="v" id="dmUnique">–</div></div>
+              <div class="stat"><div class="k t-small">Total tags</div><div class="v" id="dmTotal">–</div></div>
+              <div class="stat"><div class="k t-small">Tags / image</div><div class="v" id="dmAvg">–</div></div>
+            </div>
+            <div class="slider-row" data-field="dm_top_n" id="dmTopRow">
+              <span class="row-label t-body">Tags shown</span><span class="row-value t-body" data-val-for="dm_top_n"></span>
+              <input type="range" data-key="dm_top_n" data-range min="5" max="100" step="5" aria-label="Tags shown">
+            </div>
+            <div id="dmBars" class="tagbars" role="list"></div>
+          </div>
+        </section>
+        <section id="dm-log">
+          <div class="logwrap">
+            <div class="logbox" id="dmLogBox" tabindex="0" aria-live="off"></div>
+            <div class="liveline" id="dmLive">–</div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="snackbar t-body" id="snack" role="status" aria-live="polite"></div>
@@ -613,12 +695,17 @@
   <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="connTitle" aria-describedby="connInfo">
     <svg class="d-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
     <h2 id="connTitle">Lost connection to the server.</h2>
-    <p class="d-sub"><span class="d-spin" aria-hidden="true"></span>Retrying…</p>
+    <p class="d-sub"><span class="d-spin" aria-hidden="true"></span><span id="connRetryMsg">Retrying…</span></p>
     <div class="d-info" id="connInfo">
-      <div><span>Error code</span><span id="connCode">–</span></div>
-      <div><span>Last connected</span><span id="connLast">–</span></div>
+      <div><span>Incident ID</span><span id="connId">–</span></div>
+      <div><span>Detected at</span><span id="connAt">–</span></div>
+      <div><span>Error Code</span><span id="connCode">–</span></div>
+      <div><span>Last Connected</span><span id="connLast">–</span></div>
     </div>
-    <div class="d-actions"><button class="d-btn" id="connRetry" type="button">Retry now</button></div>
+    <div class="d-actions">
+      <button class="d-btn tonal" id="connLog" type="button">Download log</button>
+      <button class="d-btn" id="connRetry" type="button">Retry now</button>
+    </div>
   </div>
 </div>
 
@@ -850,16 +937,19 @@ function bindForm() {
     applyConditions();
     if (k === "project_name") validateName();
     scheduleSave();
+    if (DM_STATS_KEYS.has(k)) scheduleDmStats();
     if (RELEVANT.has(k)) scheduleDataset();
     if (k === "training_model" || k === "custom_model_url" || k === "optimizer") scheduleDataset();
   };
-  const root = $("#formRoot");
-  root.addEventListener("input", onChange);
-  root.addEventListener("change", onChange);
-  root.addEventListener("click", (e) => {
+  [$("#formRoot"), $("#dmForm"), $("#dmTopRow")].forEach((root) => {
+    root.addEventListener("input", onChange);
+    root.addEventListener("change", onChange);
+  });
+  $("#formRoot").addEventListener("click", (e) => {
     const b = e.target.closest(".seg button"); if (!b) return;
     const k = b.parentElement.dataset.key;
     S.cfg[k] = b.dataset.val; writeControls(k); applyConditions(); scheduleSave();
+    if (DM_STATS_KEYS.has(k)) scheduleDmStats();
     if (RELEVANT.has(k)) scheduleDataset();
   });
   applyConditions(); validateName();
@@ -867,7 +957,7 @@ function bindForm() {
 function validateName() {
   const v = String(S.cfg.project_name || "");
   const bad = v && /[ .()"'\\/]/.test(v);
-  const f = $('[data-field="project_name"]'); if (f) f.classList.toggle("invalid", !!bad);
+  $$('[data-field="project_name"]').forEach((f) => f.classList.toggle("invalid", !!bad));
 }
 const scheduleSave = debounce(() => { api("/api/settings", { config: S.cfg }).catch(() => {}); }, 900);
 
@@ -923,6 +1013,161 @@ async function stopTraining() {
 function setErr(m) { const e = $("#runError"); e.textContent = m || ""; }
 $$("[data-act]").forEach((b) => b.addEventListener("click", () => b.dataset.act === "start" ? startTraining() : stopTraining()));
 
+
+/* ------------------------------------------------------------------ dataset maker */
+const DM = { run: -1, cur: 0, tab: "graph", prev: "idle", status: "idle" };
+const DM_ACTIVE = new Set(["installing", "tagging", "stopping"]);
+const DM_STATS_KEYS = new Set(["project_name", "folder_structure", "dataset_folder", "caption_extension", "dm_top_n"]);
+const scheduleDmStats = debounce(() => refreshDmStats(), 450);
+
+function buildDmForm() {
+  $("#dmForm").innerHTML = [
+    F.panel("Project",
+      F.text("project_name", "Project name", { cls: "mono" }) + `<div id="dmBox"></div>`,
+      "Your project name is the folder containing your images (Loras/name/dataset). Spaces aren't allowed."),
+    F.panel("Auto tagger",
+      F.select("dm_model", "Tagger model", [
+        ["both", "Both (eva02-large + vit-large) · most accurate"],
+        ["SmilingWolf/wd-eva02-large-tagger-v3", "wd-eva02-large-tagger-v3"],
+        ["SmilingWolf/wd-vit-large-tagger-v3", "wd-vit-large-tagger-v3"],
+        ["SmilingWolf/wd-vit-tagger-v3", "wd-vit-tagger-v3"],
+        ["SmilingWolf/wd-swinv2-tagger-v3", "wd-swinv2-tagger-v3"],
+        ["SmilingWolf/wd-convnext-tagger-v3", "wd-convnext-tagger-v3"],
+        ["custom", "Custom Hugging Face repo…"]]) +
+      `<div data-when="dm_model=custom">${F.text("dm_custom_model", "Hugging Face repo (user/model-name)", { cls: "mono" })}</div>` +
+      F.slider("dm_threshold", "Tag threshold", 0, 1, 0.01) +
+      `<p class="hint t-small" style="margin-top:-6px">Lower gives more tags. Try 0.25 for concepts and 0.50 for styles.</p>` +
+      F.sw("dm_include_characters", "Include character names", "Turn on if you're not training a character.") +
+      F.area("dm_blacklist", "Blacklisted tags (comma separated)") +
+      `<div style="display:flex;flex-direction:column;gap:12px">
+         <button class="btn filled big" data-dm="start" type="button"></button>
+         <button class="btn danger big" data-dm="stop" type="button"></button></div>`,
+      "The first run installs the tagger (a few minutes). Existing .txt captions are overwritten, like in the Dataset Maker notebook."),
+    F.panel("Add a tag to every image",
+      F.text("dm_activation_tag", "Tag(s), comma separated", { cls: "mono" }) +
+      `<button class="btn tonal big" data-dm="add" type="button">Add to the front of every caption</button>`,
+      "Puts the tag(s) at the start of every image's .txt file (missing files are created). Set keep_tokens to 1 when training."),
+  ].join("");
+}
+
+function setMode(m) {
+  document.body.dataset.mode = m;
+  $$("#modeSeg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === m)));
+  try { localStorage.setItem("easytrainer-mode", m); } catch (e) {}
+  if (m === "data") { refreshDmStats(); renderDmStatus(); }
+  requestAnimationFrame(redrawAll);
+}
+$("#modeSeg").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setMode(b.dataset.mode); });
+$("#dmTabs").addEventListener("click", (e) => {
+  const t = e.target.closest(".tab"); if (!t) return;
+  DM.tab = t.dataset.dmtab;
+  $$("#dmTabs .tab").forEach((x) => x.setAttribute("aria-selected", String(x === t)));
+  $$(".dmpanes > section").forEach((x) => x.classList.toggle("active", x.id === "dm-" + DM.tab));
+  if (DM.tab === "log") { const b = $("#dmLogBox"); b.scrollTop = b.scrollHeight; }
+});
+
+function dmSetErr(m) { const e = $("#dmError"); e.textContent = m || ""; }
+async function refreshDmStats() {
+  const c = S.cfg;
+  if (!String(c.project_name || "").trim() && !String(c.dataset_folder || "").trim()) { renderDm(null); return; }
+  let d; try { d = await api("/api/dm/stats", { config: S.cfg, top: S.cfg.dm_top_n }); } catch (e) { return; }
+  renderDm(d);
+}
+function renderDm(d) {
+  const box = $("#dmBox"), bars = $("#dmBars");
+  if (box) box.replaceChildren();
+  bars.replaceChildren();
+  const set = (id, v) => { $(id).textContent = v; };
+  const fmt = (n) => (n == null ? "–" : Number(n).toLocaleString());
+  if (!d) {
+    ["#dmImages", "#dmCaptioned", "#dmUnique", "#dmTotal", "#dmAvg"].forEach((i) => set(i, "–"));
+    if (box) box.appendChild(el("div", "banner info t-small", "Enter a project name to check your dataset."));
+    bars.appendChild(el("div", "empty t-body", "Enter a project name to see its tag graph."));
+    return;
+  }
+  set("#dmImages", fmt(d.images)); set("#dmCaptioned", fmt(d.captioned)); set("#dmUnique", fmt(d.unique));
+  set("#dmTotal", fmt(d.total_tags)); set("#dmAvg", d.captioned ? d.avg_per_image : "–");
+  if (d.error) {
+    if (box) box.appendChild(el("div", "banner error t-small", d.error));
+    bars.appendChild(el("div", "empty t-body", d.error));
+    return;
+  }
+  if (box) {
+    box.appendChild(el("div", d.images ? "banner info t-small" : "banner warn t-small",
+      d.images ? `${d.images} images · ${d.captioned} with captions` : `No images in ${d.folder}`));
+    const pl = el("div", "pathline", "dataset: " + d.folder); box.appendChild(pl);
+  }
+  if (!d.top.length) {
+    bars.appendChild(el("div", "empty t-body", d.images ? "No captions yet. Run the auto tagger to see the tag graph." : "Add images to the dataset folder first."));
+    return;
+  }
+  const max = d.top[0][1], base = d.captioned || 1;
+  d.top.forEach(([tag, n], i) => {
+    const row = el("div", "tagbar"); row.setAttribute("role", "listitem"); row.title = `${tag}: ${n} (${(100 * n / base).toFixed(1)}% of captioned images)`;
+    const nm = el("span", "nm", tag);
+    const tr = el("span", "track"), fill = el("i"); fill.style.width = "0%"; tr.appendChild(fill);
+    const ct = el("span", "ct", String(n)); ct.appendChild(el("small", null, `${Math.round(100 * n / base)}%`));
+    row.append(nm, tr, ct); bars.appendChild(row);
+    requestAnimationFrame(() => { fill.style.width = (100 * n / max) + "%"; });
+  });
+}
+
+function renderDmStatus() {
+  const st = DM.last || { status: "idle", phase: "", progress: {} };
+  const [label, tone] = STATUS_UI[st.status] || [st.status, ""];
+  const chip = $("#dmChip"); chip.textContent = label; chip.className = "status " + tone;
+  $("#dmPhase").textContent = st.phase || "";
+  const active = DM_ACTIVE.has(st.status), p = st.progress || {};
+  $$('[data-dm="start"]').forEach((b) => { b.disabled = active; b.innerHTML = icon("play") + "Start tagging"; });
+  $$('[data-dm="stop"]').forEach((b) => { b.disabled = !active || st.status === "stopping"; b.innerHTML = icon("stop") + (st.status === "stopping" ? "Stopping…" : "Stop"); });
+  const bar = $("#dmProgress"), fill = $("#dmProgress > div");
+  bar.classList.toggle("indeterminate", st.status === "installing" || (st.status === "tagging" && !p.pct));
+  if (!bar.classList.contains("indeterminate")) fill.style.width = (st.status === "finished" ? 100 : clamp(p.pct || 0, 0, 100)) + "%"; else fill.style.width = "";
+  $("#dmProgLeft").textContent = st.status === "idle" ? "Not started" : (st.phase || "");
+  $("#dmProgRight").textContent = st.status === "tagging" && p.pct ? `${p.pct.toFixed(1)}%` : (st.result ? `${st.result.captioned}/${st.result.images} captioned` : "");
+  if (st.status === "failed" && st.error) dmSetErr(st.error); else if (active) dmSetErr("");
+  $("#dmLive").textContent = st.live || "–";
+}
+function handleDm(dm) {
+  const box = $("#dmLogBox");
+  if (dm.reset) { box.replaceChildren(); }
+  DM.run = dm.run_id; DM.cur = dm.next; DM.last = dm;
+  if (dm.lines.length) {
+    const near = box.scrollHeight - box.scrollTop - box.clientHeight < 40, frag = document.createDocumentFragment();
+    dm.lines.forEach((l) => frag.appendChild(lineEl(l)));
+    box.appendChild(frag);
+    while (box.children.length > 1500) box.removeChild(box.firstChild);
+    if (near) box.scrollTop = box.scrollHeight;
+  }
+  renderDmStatus();
+  const was = DM_ACTIVE.has(DM.prev), now = DM_ACTIVE.has(dm.status);
+  if (was && !now) refreshDmStats();                       // a run just ended: update the graph
+  DM.prev = dm.status;
+}
+async function startTagging() {
+  if (!String(S.cfg.project_name).trim()) { toast("Please enter a project name."); $('#dmForm [data-key="project_name"]').focus(); return; }
+  dmSetErr("");
+  const r = await api("/api/dm/tag", { config: S.cfg });
+  if (!r._ok || !r.ok) { dmSetErr(r.error || "Could not start."); toast(r.error || "Could not start."); showPane("monitor"); return; }
+  showPane("monitor");
+  $$("#dmTabs .tab")[1].click();
+}
+async function addActivationTag() {
+  if (!String(S.cfg.project_name).trim()) { toast("Please enter a project name."); $('#dmForm [data-key="project_name"]').focus(); return; }
+  const r = await api("/api/dm/activation", { config: S.cfg });
+  if (!r._ok || !r.ok) { toast(r.error || "Could not add the tag."); return; }
+  toast(`Added "${r.tags.join(", ")}" to ${r.modified + r.created} of ${r.images} captions` +
+        (r.created ? ` (${r.created} new files)` : "") + (r.unchanged ? `, ${r.unchanged} already had it first` : "") + ".", 7000);
+  refreshDmStats();
+}
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-dm]"); if (!b) return;
+  if (b.dataset.dm === "start") startTagging();
+  else if (b.dataset.dm === "stop") { const r = await api("/api/dm/stop", {}); if (!r.ok) toast("Nothing to stop."); }
+  else if (b.dataset.dm === "add") addActivationTag();
+});
+$("#dmRefresh").addEventListener("click", refreshDmStats);
+
 /* ------------------------------------------------------------------ tabs & panes */
 function showTab(name) {
   $$(".tab").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.tab === name)));
@@ -946,7 +1191,7 @@ $("#paneSeg").addEventListener("click", (e) => { const b = e.target.closest("but
 /* ------------------------------------------------------------------ status rendering */
 const STATUS_UI = {
   idle: ["Idle", ""], validating: ["Checking", "busy"], installing: ["Installing", "busy"], downloading: ["Downloading", "busy"],
-  configuring: ["Preparing", "busy"], training: ["Training", "train"], stopping: ["Stopping", "warn"],
+  configuring: ["Preparing", "busy"], training: ["Training", "train"], tagging: ["Tagging", "train"], stopping: ["Stopping", "warn"],
   finished: ["Finished", "ok"], failed: ["Failed", "bad"], stopped: ["Stopped", "warn"],
 };
 function renderStatus(st) {
@@ -977,7 +1222,7 @@ function renderStatus(st) {
   if (p.total) S.total = p.total;
   $("#liveLine").textContent = st.live || "–";
   const pct = p.total && p.step ? ` ${Math.round(p.pct || 0)}%` : "";
-  document.title = st.status === "training" ? `▶${pct} · Kohya Trainer` : (st.status === "finished" ? "✓ Kohya Trainer" : "Kohya Trainer");
+  document.title = st.status === "training" ? `▶${pct} · EasyTrainer` : (st.status === "finished" ? "✓ EasyTrainer" : "EasyTrainer");
   // refresh outputs when a run ends / an epoch is saved
   const key = st.status + ":" + (p.epoch || 0);
   if (S.lastStatusKey !== key) {
@@ -1354,62 +1599,139 @@ function handle(d) {
     S.sys.push(...d.system.samples); if (S.sys.length > HIST) S.sys.splice(0, S.sys.length - HIST);
   }
   S.cur.s = d.system.next;
+  if (d.dm) handleDm(d.dm);
   renderSystem();
   if (m.points.length || d.reset) drawLoss();
   if (S.tab === "info" && d.system.samples.length && !(S.sys.length % 5)) renderInfo();
 }
+const RETRY_MS = 10000;   // auto retry interval while disconnected
+const utc = (d) => d.toISOString().slice(0, 19).replace("T", " ") + " UTC";
 async function poll() {
+  clearTimeout(S.pollT);
   try {
-    const r = await fetch(`/api/poll?run=${S.run}&m=${S.cur.m}&l=${S.cur.l}&s=${S.cur.s}`, { cache: "no-store" });
+    const r = await fetch(`/api/poll?run=${S.run}&m=${S.cur.m}&l=${S.cur.l}&s=${S.cur.s}&dr=${DM.run}&dl=${DM.cur}`, { cache: "no-store" });
     if (!r.ok) throw new Error("HTTP " + r.status);
     handle(await r.json());
-    S.fails = 0; S.lastOk = new Date();
+    S.fails = 0; S.lastOk = new Date(); S.attempts = [];
     if (!S.connected) { S.connected = true; connDialog(false); }
   } catch (e) {
     S.fails = (S.fails || 0) + 1;
     S.errCode = /^HTTP (\d+)/.test(e.message) ? "HTTP " + e.message.slice(5) : "Network error";
-    if (S.connected && S.fails >= 2) { S.connected = false; connDialog(true); }   // 2 misses in a row: avoids flicker
-    else if (!S.connected) connDialog(true);                                       // keep the code up to date
+    (S.attempts = S.attempts || []).push(`${utc(new Date())}  ${S.errCode}  (${e.message})`);
+    if (S.attempts.length > 200) S.attempts.shift();
+    if (S.connected && S.fails >= 2) {                       // 2 misses in a row: avoids flicker
+      S.connected = false;
+      S.incident = { id: "conn-" + Array.from(crypto.getRandomValues(new Uint8Array(3)), (x) => x.toString(16).padStart(2, "0")).join(""), at: new Date() };
+      connDialog(true);
+    } else if (!S.connected) connDialog(true);               // keep the code up to date
   } finally {
-    S.pollT = setTimeout(poll, document.hidden ? 3000 : 1000);
+    const wait = S.connected ? (document.hidden ? 3000 : 1000) : RETRY_MS;
+    S.nextTry = Date.now() + wait;
+    S.pollT = setTimeout(poll, wait);
   }
 }
-/* Modal "connection lost" dialog: dims the page and makes everything behind it inert (not clickable/focusable). */
+/* Modal "connection lost" dialog: dims the page, makes everything behind it inert and locks scrolling. */
+function lockPage(on) {
+  const root = document.documentElement;
+  if (on) {
+    const sb = window.innerWidth - root.clientWidth;          // keep layout from jumping when the scrollbar disappears
+    if (sb > 0) document.body.style.paddingRight = sb + "px";
+    root.classList.add("conn-lock");
+  } else {
+    root.classList.remove("conn-lock"); document.body.style.paddingRight = "";
+  }
+}
+function connTick() {
+  const sec = Math.max(0, Math.ceil((S.nextTry - Date.now()) / 1000));
+  $("#connRetryMsg").textContent = S.nextTry ? `Retrying in ${sec}s…` : "Retrying…";
+}
 function connDialog(show) {
   const box = $("#conn");
   if (show) {
+    const i = S.incident || { id: "–", at: new Date() };
+    $("#connId").textContent = i.id;
+    $("#connAt").textContent = utc(i.at);
     $("#connCode").textContent = S.errCode || "–";
-    $("#connLast").textContent = S.lastOk ? S.lastOk.toISOString().slice(11, 19) + " UTC" : "never";
+    $("#connLast").textContent = S.lastOk ? utc(S.lastOk) : "never";
     if (!box.classList.contains("show")) {
       S.prevFocus = document.activeElement;
       box.hidden = false; void box.offsetWidth; box.classList.add("show");
       [...document.body.children].forEach((n) => { if (n !== box && n.tagName !== "SCRIPT") n.inert = true; });
+      lockPage(true);
       $("#connRetry").focus();
+      clearInterval(S.tickT); S.tickT = setInterval(connTick, 500);
     }
+    connTick();
   } else {
+    clearInterval(S.tickT);
     box.classList.remove("show");
     [...document.body.children].forEach((n) => { n.inert = false; });
+    lockPage(false);
     setTimeout(() => { if (S.connected) box.hidden = true; }, 300);
     if (S.prevFocus && S.prevFocus.focus) try { S.prevFocus.focus(); } catch (e) {}
   }
 }
-$("#connRetry").addEventListener("click", () => { clearTimeout(S.pollT); poll(); });
-$("#conn").addEventListener("keydown", (e) => { if (e.key === "Tab") { e.preventDefault(); $("#connRetry").focus(); } });
+function connReport() {
+  const i = S.incident || { id: "n/a", at: new Date() };
+  const tail = (S.log || []).slice(-200).map((l) => `[${new Date(l[0] * 1000).toISOString()}] ${l[2]}`);
+  return [
+    "EasyTrainer - connection incident report",
+    "==============================================",
+    `Incident ID:    ${i.id}`,
+    `Detected at:    ${utc(i.at)}`,
+    `Error Code:     ${S.errCode || "-"}`,
+    `Last Connected: ${S.lastOk ? utc(S.lastOk) : "never"}`,
+    `Report created: ${utc(new Date())}`,
+    `Auto retry:     every ${RETRY_MS / 1000}s`,
+    "",
+    "Client",
+    "------",
+    `Page:           ${location.origin}${location.pathname}   (access token omitted)`,
+    `Browser online: ${navigator.onLine}`,
+    `User agent:     ${navigator.userAgent}`,
+    `Run state:      ${S.lastStatusKey || "unknown"}`,
+    "",
+    `Failed requests since last successful connection (${(S.attempts || []).length})`,
+    "---------------------------------------------------------------",
+    ...(S.attempts || []),
+    "",
+    "Last trainer log lines received before the connection was lost (up to 200)",
+    "--------------------------------------------------------------------------",
+    ...(tail.length ? tail : ["(none)"]),
+    "",
+  ].join("\n");
+}
+$("#connLog").addEventListener("click", () => download(`incident-${(S.incident || {}).id || "conn"}.log`, connReport()));
+$("#connRetry").addEventListener("click", () => { poll(); });
+// scrolling is locked while the dialog is up: swallow wheel/touch/keys that would scroll the page behind it
+const _blockScroll = (e) => { if ($("#conn").classList.contains("show") && !e.target.closest(".dialog")) e.preventDefault(); };
+$("#conn").addEventListener("wheel", _blockScroll, { passive: false });
+$("#conn").addEventListener("touchmove", _blockScroll, { passive: false });
+window.addEventListener("keydown", (e) => {
+  if (!$("#conn").classList.contains("show")) return;
+  if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(e.key) && e.target.id !== "connRetry" && e.target.id !== "connLog") e.preventDefault();
+}, true);
+$("#conn").addEventListener("keydown", (e) => {
+  if (e.key !== "Tab") return;
+  e.preventDefault();
+  const order = [$("#connLog"), $("#connRetry")], i = order.indexOf(document.activeElement);
+  order[(i + (e.shiftKey ? -1 : 1) + order.length) % order.length].focus();
+});
 
 /* ------------------------------------------------------------------ boot */
 async function boot() {
-  buildForm();
+  buildForm(); buildDmForm();
   const d = await api("/api/defaults");
   S.defaults = d.defaults; S.cfg = Object.assign({}, d.defaults, d.saved || {});
   S.info = d.info || {}; S.colab = d.colab; S.demo = d.demo; S.bundleRoot = d.bundle_root; S.settingsPath = d.settings_path;
   const tags = $("#tags");
   if (d.demo) tags.appendChild(el("span", "tag demo t-label", "DEMO · simulated training"));
-  tags.appendChild(el("span", "tag plain t-label", d.colab ? "Google Colab" : "Local"));
-  if (d.tunnel_url) tags.appendChild(el("span", "tag plain t-label", "Cloudflare tunnel"));
   bindForm();
   $$('[data-act="start"]').forEach((b) => (b.innerHTML = icon("play") + "Start training"));
   $$('[data-act="stop"]').forEach((b) => { b.innerHTML = icon("stop") + "Stop"; b.disabled = true; });
   refreshDataset();
+  let m0 = "train"; try { m0 = localStorage.getItem("easytrainer-mode") || "train"; } catch (e) {}
+  setMode(m0 === "data" ? "data" : "train");
   showTab("overview");
   poll();
   window.addEventListener("resize", debounce(redrawAll, 120));
