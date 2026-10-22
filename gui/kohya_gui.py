@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Kohya Trainer GUI - backend.
+EasyTrainer GUI - backend.
 
 A small web app that configures, launches and monitors an SDXL Lora training run
 (same pipeline as Lora_Trainer_XL.ipynb). It ONLY uses the Python
@@ -110,10 +110,19 @@ DEFAULTS = {
   "recommended_values": True,
   "optimizer_args": "",
   "continue_from_lora": "",
+  "continue_mode": False,              # set by the "Continue training" tab
+  "continue_suffix": "_cont",          # new files are saved as <project><suffix>[-N]-000001.safetensors
   "custom_dataset": "",
   "seed": 42,
   "install_mode": "online",            # online | skip
   "ignore_step_limit": False,
+  "dm_model": "both",                  # both | a key of TAGGER_MODELS | custom
+  "dm_custom_model": "",
+  "dm_threshold": 0.25,
+  "dm_include_characters": False,
+  "dm_blacklist": "virtual youtuber, parody, style parody, official alternate costume, official alternate hairstyle, official alternate hair length, alternate costume, alternate hairstyle, alternate hair length, alternate hair color",
+  "dm_activation_tag": "",
+  "dm_top_n": 30,
   "settings_version": 2,               # settings saved by the old SD1.5 GUI are ignored
 }
 
@@ -277,7 +286,7 @@ def dataset_info(cfg, paths=None):
       cap = (cfg.get("caption_extension") or ".txt").strip().lower() or ".txt"
       entry["images"] = sum(1 for f in names if f.lower().endswith(SUPPORTED_IMAGES))
       entry["captions"] = sum(1 for f in names if f.lower().endswith(cap))
-      entry["invalid"] = [f for f in names if not f.lower().endswith((cap, ".npz") + SUPPORTED_IMAGES)][:5]
+      entry["invalid"] = [f for f in sorted(names) if not f.lower().endswith((cap, ".npz") + SUPPORTED_IMAGES)][:100]
       seen = {}
       for f in sorted(names):
         if f.lower().endswith(SUPPORTED_IMAGES):
@@ -324,7 +333,8 @@ def model_spec(cfg):
 def effective_learning(cfg):
   """Applies the 'recommended values' logic of the XL notebook."""
   unet, te = to_float(cfg["unet_lr"]), to_float(cfg["text_encoder_lr"])
-  dim, alpha = to_int(cfg["network_dim"]), to_int(cfg["network_alpha"])
+  dim, alpha = to_int(cfg["network_dim"]), to_float(cfg["network_alpha"])
+  alpha = int(alpha) if alpha == int(alpha) else alpha   # keep fractional alphas (e.g. 0.5) from continued Loras
   precision = cfg["precision"]
   mixed = "fp16" if "fp16" in precision else "bf16" if "bf16" in precision else "no"
   full = "full" in precision
@@ -415,8 +425,8 @@ def build_configs(cfg, paths, model_file, info, rex_args=None):
     "saving_arguments": {
       "save_precision": "fp16", "save_model_as": "safetensors",
       "save_every_n_epochs": save_every, "save_last_n_epochs": keep_last,
-      "output_name": cfg["project_name"], "output_dir": paths["output"],
-      "log_prefix": cfg["project_name"], "logging_dir": paths["logs"],
+      "output_name": cfg.get("_output_name") or cfg["project_name"], "output_dir": paths["output"],
+      "log_prefix": cfg.get("_output_name") or cfg["project_name"], "logging_dir": paths["logs"],
       "wandb_api_key": wandb or None, "log_with": "wandb" if wandb else None,
     },
   }
@@ -461,12 +471,21 @@ def validate_config(cfg, paths, info):
     if not f["images"]:
       return f"Your folder {f['path']} has no images."
     if f.get("invalid"):
-      return f"Invalid file in dataset: \"{f['invalid'][0]}\". Aborting."
+      shown = "./" + os.path.basename(f["path"].rstrip("/\\"))
+      lines = [f"Unsupported file on {shown}/{n}" for n in f["invalid"]]
+      if len(f["invalid"]) >= 100:
+        lines.append("…and possibly more. Remove these files and try again.")
+      else:
+        lines.append("Remove or move these files out of the dataset folder, then try again.")
+      return "\n".join(lines)
     if f.get("duplicates"):
-      return f"The files {f['duplicates'][0]} and {f['duplicates'][1]} cannot have the same name. Aborting."
+      return (f"Two images share the same name: {f['duplicates'][0]} and {f['duplicates'][1]}.\n"
+              "Rename one of them (the name without the extension must be unique).")
   custom = cfg["custom_model_url"].strip()
   if custom.startswith("/") and not os.path.isfile(custom) and not cfg["custom_is_diffusers"]:
     return "The custom training model you specified was not found."
+  if cfg.get("continue_mode") and not cfg["continue_from_lora"].strip():
+    return "Pick the Lora you want to continue from."
   if cfg["continue_from_lora"].strip():
     p = cfg["continue_from_lora"].strip()
     if not (p.endswith(".safetensors") and os.path.exists(p)):
@@ -479,6 +498,92 @@ def validate_config(cfg, paths, info):
   if CFG["colab"] and not os.path.isdir("/content/drive/MyDrive"):
     return "Google Drive is not mounted. Run the first cell of GUI_Trainer.ipynb."
   return None
+
+
+# --------------------------------------------------------------------------
+# continue training: read a saved Lora's metadata, pick a safe output name
+# --------------------------------------------------------------------------
+EPOCH_FILE_RE = re.compile(r"-(\d{4,6})\.safetensors$")
+
+
+def read_lora_meta(path):
+  """Reads only the safetensors header (no torch needed). Returns a dict or None."""
+  try:
+    with open(path, "rb") as f:
+      n = int.from_bytes(f.read(8), "little")
+      if n <= 0 or n > 50_000_000:
+        return None
+      header = json.loads(f.read(n))
+  except (OSError, ValueError):
+    return None
+  md = header.get("__metadata__") or {}
+  if not isinstance(md, dict) or not any(k.startswith("ss_") for k in md):
+    return {"has_meta": False, "dim": None, "alpha": None}
+
+  def num(k, cast=int):
+    try:
+      return cast(float(md.get(k)))
+    except (TypeError, ValueError):
+      return None
+
+  net_args = {}
+  try:
+    parsed = json.loads(md.get("ss_network_args") or "null")
+    if isinstance(parsed, dict):
+      net_args = parsed
+  except ValueError:
+    pass
+  conv_dim = to_int(net_args.get("conv_dim"), 0) or None
+  conv_alpha = to_float(net_args.get("conv_alpha"), 0) or None
+  algo = str(net_args.get("algo", "lora")).lower()
+  m = EPOCH_FILE_RE.search(os.path.basename(path))
+  epoch = num("ss_epoch") or (int(m.group(1)) if m else None)
+  return {
+    "has_meta": True, "dim": num("ss_network_dim"), "alpha": num("ss_network_alpha", float),
+    "conv_dim": conv_dim, "conv_alpha": conv_alpha, "algo": algo,
+    "lora_type": "LoCon" if conv_dim and algo == "lora" else "LoRA",
+    "epoch": epoch, "steps": num("ss_steps"), "resolution": md.get("ss_resolution"),
+    "unet_lr": md.get("ss_unet_lr"), "text_encoder_lr": md.get("ss_text_encoder_lr"),
+    "base_model": md.get("ss_sd_model_name"), "images": num("ss_num_train_images"),
+    "optimizer": md.get("ss_optimizer"),
+  }
+
+
+def continue_output_name(cfg, paths):
+  """<project><suffix>, plus -2, -3... if files with that name already exist (never overwrite)."""
+  suffix = re.sub(r"[^A-Za-z0-9_.-]", "", cfg.get("continue_suffix") or "") or "_cont"
+  base = cfg["project_name"].strip() + suffix
+  out = paths["output"]
+
+  def taken(name):
+    if not os.path.isdir(out):
+      return False
+    return any(fn == name + ".safetensors" or fn.startswith(name + "-") for fn in os.listdir(out))
+
+  name, i = base, 1
+  while taken(name):
+    i += 1
+    name = f"{base}{i}"
+  return name
+
+
+def apply_continue(cfg, paths):
+  """Makes a 'continue' run safe: network shape comes from the Lora itself, output name never collides."""
+  if not cfg.get("continue_mode"):
+    return cfg
+  cfg = dict(cfg)
+  meta = read_lora_meta(os.path.expanduser(cfg["continue_from_lora"].strip())) if cfg["continue_from_lora"].strip() else None
+  cfg["_continue_meta"] = meta
+  if meta and meta.get("dim"):
+    cfg["network_dim"] = meta["dim"]
+    if meta.get("alpha"):
+      cfg["network_alpha"] = meta["alpha"]
+    cfg["lora_type"] = meta["lora_type"]
+    if meta.get("conv_dim"):
+      cfg["conv_dim"] = meta["conv_dim"]
+      cfg["conv_alpha"] = meta.get("conv_alpha") or cfg["conv_alpha"]
+  cfg["_output_name"] = continue_output_name(cfg, paths)
+  return cfg
 
 
 def merged(cfg):
@@ -975,9 +1080,12 @@ class Trainer:
   def start(self, cfg):
     cfg = merged(cfg)
     paths = paths_for(cfg)
+    cfg = apply_continue(cfg, paths)
     with self.lock:
       if self.active():
         return {"ok": False, "error": "A run is already in progress."}
+    if TAGGER.active():
+      return {"ok": False, "error": "The auto tagger is running. Wait for it to finish or stop it first."}
     info = dataset_info(cfg, paths)
     if CFG["demo"] and not info["images"]:
       info.update({"images": 24, "total_steps": info.get("total_steps") or 0})
@@ -999,6 +1107,12 @@ class Trainer:
       self.progress["total"] = info["total_steps"]
       self.progress["epochs"] = info["epochs"]
     SAMPLER.disk_path = paths["output"] if os.path.isdir(paths["output"]) else os.path.dirname(paths["output"])
+    if cfg.get("continue_mode"):
+      m = cfg.get("_continue_meta") or {}
+      shape = f"dim {m['dim']}, alpha {m['alpha']:g}" if m.get("dim") and m.get("alpha") else "shape not found in file, using your settings"
+      at = f" (saved at epoch {m['epoch']})" if m.get("epoch") else ""
+      self.add_log(f"⏩ Continuing from {os.path.basename(cfg['continue_from_lora'])}{at} · {shape}", "ok")
+      self.add_log(f"⏩ New checkpoints will be saved as {cfg['_output_name']}-… so the originals stay untouched", "ok")
     threading.Thread(target=self._pipeline, args=(cfg, paths, info), daemon=True).start()
     return {"ok": True, "run_id": self.run_id}
 
@@ -1365,6 +1479,471 @@ TRAINER = Trainer()
 SAMPLER = Sampler(TRAINER)
 
 # --------------------------------------------------------------------------
+# dataset maker: auto tagger, activation tag, tag statistics
+# (port of steps 4, 5 and "Analyze Tags" of Dataset_Maker.ipynb)
+# --------------------------------------------------------------------------
+TAGGER_REPO = "https://github.com/kohya-ss/sd-scripts"
+TAGGER_COMMIT = "e89653975ddf429cdf0c0fd268da0a5a3e8dba1f"   # same pin as Dataset_Maker.ipynb
+TAGGER_BOTH = ["SmilingWolf/wd-eva02-large-tagger-v3", "SmilingWolf/wd-vit-large-tagger-v3"]
+TAGGER_MODELS = {
+  "both": TAGGER_BOTH,
+  "SmilingWolf/wd-eva02-large-tagger-v3": ["SmilingWolf/wd-eva02-large-tagger-v3"],
+  "SmilingWolf/wd-vit-large-tagger-v3": ["SmilingWolf/wd-vit-large-tagger-v3"],
+  "SmilingWolf/wd-vit-tagger-v3": ["SmilingWolf/wd-vit-tagger-v3"],
+  "SmilingWolf/wd-swinv2-tagger-v3": ["SmilingWolf/wd-swinv2-tagger-v3"],
+  "SmilingWolf/wd-convnext-tagger-v3": ["SmilingWolf/wd-convnext-tagger-v3"],
+}
+REPO_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+TQDM_COUNT = re.compile(r"(\d+)/(\d+)\s*\[")
+
+
+def split_tags(text):
+  return [t.strip() for t in str(text or "").split(",") if t.strip()]
+
+
+def dm_check(cfg, need_images=True):
+  """Returns (paths, error). Shared by tagging, activation tag and statistics."""
+  name = cfg["project_name"].strip()
+  if not cfg["dataset_folder"].strip():
+    if not name or any(c in name for c in " .()\"'\\/"):
+      return None, "Please enter a valid project name (no spaces or . ( ) \" ' \\ /)."
+  paths = paths_for(cfg)
+  if CFG["colab"] and not os.path.isdir("/content/drive/MyDrive"):
+    return paths, "Google Drive is not mounted. Run the first cell of GUI_Trainer.ipynb."
+  return paths, None
+
+
+def dm_files(folder, exts):
+  out = []
+  for root, dirs, files in os.walk(folder):
+    dirs.sort()
+    for fn in sorted(files):
+      if fn.lower().endswith(exts):
+        out.append(os.path.join(root, fn))
+  return out
+
+
+def caption_path(img, ext):
+  return os.path.splitext(img)[0] + ext
+
+
+def dm_stats(cfg, top=50):
+  paths, err = dm_check(cfg)
+  res = {"ok": False, "error": err, "folder": paths["images"] if paths else None, "images": 0, "captioned": 0,
+         "unique": 0, "total_tags": 0, "avg_per_image": 0, "top": []}
+  if err:
+    return res
+  folder = paths["images"]
+  if not os.path.isdir(folder):
+    res["error"] = f"Dataset folder not found: {folder}"
+    return res
+  ext = cfg["caption_extension"] if cfg["caption_extension"] in (".txt", ".caption") else ".txt"
+  imgs = dm_files(folder, SUPPORTED_IMAGES)
+  counter = collections.Counter()
+  captioned = 0
+  for img in imgs:
+    cp = caption_path(img, ext)
+    if not os.path.isfile(cp):
+      continue
+    try:
+      with open(cp, "r", encoding="utf-8", errors="replace") as f:
+        tags = split_tags(f.read())
+    except OSError:
+      continue
+    captioned += 1
+    counter.update(tags)
+  total = sum(counter.values())
+  res.update({"ok": True, "images": len(imgs), "captioned": captioned, "unique": len(counter), "total_tags": total,
+              "avg_per_image": round(total / captioned, 1) if captioned else 0,
+              "top": counter.most_common(max(1, min(to_int(top, 50), 200)))})
+  return res
+
+
+def dm_add_tags(cfg, tags):
+  """Puts the given tag(s) at the start of every image's caption file (creates missing ones)."""
+  paths, err = dm_check(cfg)
+  if err:
+    return {"ok": False, "error": err}
+  tags = list(dict.fromkeys(tags))
+  if not tags:
+    return {"ok": False, "error": "Enter a tag to add."}
+  if any(("\n" in t or "\r" in t) for t in tags):
+    return {"ok": False, "error": "A tag can't contain line breaks."}
+  folder = paths["images"]
+  if not os.path.isdir(folder):
+    return {"ok": False, "error": f"Dataset folder not found: {folder}"}
+  if TRAINER.active() or TAGGER.active():
+    return {"ok": False, "error": "Wait for the current training / tagging job to finish."}
+  ext = cfg["caption_extension"] if cfg["caption_extension"] in (".txt", ".caption") else ".txt"
+  imgs = dm_files(folder, SUPPORTED_IMAGES)
+  if not imgs:
+    return {"ok": False, "error": f"No images found in {folder}"}
+  modified = created = unchanged = 0
+  for img in imgs:
+    cp = caption_path(img, ext)
+    existing = os.path.isfile(cp)
+    cur = []
+    if existing:
+      with open(cp, "r", encoding="utf-8", errors="replace") as f:
+        cur = split_tags(f.read())
+    new = list(tags) + [t for t in cur if t not in tags]     # same result as the notebook: remove, then insert at the front
+    if existing and new == cur:
+      unchanged += 1
+      continue
+    with open(cp, "w", encoding="utf-8") as f:
+      f.write(", ".join(new))
+    if existing:
+      modified += 1
+    else:
+      created += 1
+  return {"ok": True, "images": len(imgs), "modified": modified, "created": created, "unchanged": unchanged,
+          "tags": tags}
+
+
+def _tiny_png(seed):
+  import struct, zlib
+  def chunk(t, d):
+    c = struct.pack(">I", len(d)) + t + d
+    return c + struct.pack(">I", zlib.crc32(t + d) & 0xffffffff)
+  rows = b"".join(b"\x00" + bytes((seed * 37 + x * 9 + y * 5) % 256 for x in range(8)) for y in range(8))
+  return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 8, 8, 8, 0, 0, 0, 0)) + \
+    chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b"")
+
+
+class Tagger:
+  """Runs finetune/tag_images_by_wd14_tagger.py (installed once into its own venv) like step 4 of the notebook."""
+  def __init__(self):
+    self.lock = threading.RLock()
+    self.run_id = 0
+    self._status = "idle"
+    self.phase = ""
+    self.error = None
+    self.proc = None
+    self.stop_requested = False
+    self.log = []
+    self.log_base = 0
+    self.live = ""
+    self.progress = {"pct": 0.0, "model": 0, "models": 0}
+    self.started = self.ended = None
+    self.result = None
+
+  def status(self):
+    with self.lock:
+      return self._status
+
+  def active(self):
+    return self.status() in ("installing", "tagging", "stopping")
+
+  def dirs(self):
+    base = os.path.join(work_dir(), "tagger")
+    kohya = os.path.join(base, "kohya")
+    return {"base": base, "kohya": kohya, "python": os.path.join(kohya, "venv", "bin", "python"),
+            "pip": os.path.join(kohya, "venv", "bin", "pip"),
+            "marker": os.path.join(kohya, f".easytrainer_installed_{TAGGER_COMMIT[:8]}")}
+
+  def add_log(self, text, level=None):
+    if level is None:
+      low = text.lower()
+      if "traceback" in low or "error" in low or "💥" in text or "exception" in low:
+        level = "error"
+      elif "warn" in low:
+        level = "warn"
+      elif text.startswith(("✅", "📊", "🏭", "🏷", "📎")):
+        level = "ok"
+      else:
+        level = "info"
+    with self.lock:
+      self.log.append([now(), level, text])
+      if len(self.log) > 5000:
+        drop = len(self.log) - 4000
+        del self.log[:drop]
+        self.log_base += drop
+
+  def set_status(self, status, phase=None):
+    with self.lock:
+      self._status = status
+      if phase is not None:
+        self.phase = phase
+
+  def _handle_line(self, raw):
+    line = ANSI.sub("", raw).rstrip()
+    if not line.strip():
+      return
+    if TQDM_ANY.search(line):
+      m = TQDM_COUNT.search(line)
+      with self.lock:
+        self.live = line.strip()
+        if m and int(m.group(2)) > 0 and self._status == "tagging":
+          frac = min(1.0, int(m.group(1)) / int(m.group(2)))
+          models = max(1, self.progress["models"])
+          self.progress["pct"] = round(100.0 * (self.progress["model"] + frac) / models, 1)
+      return
+    self.add_log(line)
+
+  def stream(self, cmd, cwd=None, env=None):
+    if self.stop_requested:
+      return 130
+    self.add_log("$ " + " ".join(cmd), "cmd")
+    e = dict(os.environ, PYTHONUNBUFFERED="1", TF_CPP_MIN_LOG_LEVEL="3")
+    if env:
+      e.update(env)
+    try:
+      proc = subprocess.Popen(cmd, cwd=cwd, env=e, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                              bufsize=0, start_new_session=True)
+    except OSError as err:
+      self.add_log(f"💥 Could not start process: {err}", "error")
+      return 127
+    with self.lock:
+      self.proc = proc
+    fd = proc.stdout.fileno()
+    buf = b""
+    while True:
+      try:
+        chunk = os.read(fd, 8192)
+      except OSError:
+        break
+      if not chunk:
+        break
+      buf += chunk
+      parts = re.split(rb"[\r\n]", buf)
+      buf = parts.pop()
+      for part in parts:
+        if part.strip():
+          self._handle_line(part.decode("utf-8", "replace"))
+      if buf and b"%|" in buf:
+        self._handle_line(buf.decode("utf-8", "replace"))
+    if buf.strip():
+      self._handle_line(buf.decode("utf-8", "replace"))
+    code = proc.wait()
+    with self.lock:
+      self.proc = None
+    return code
+
+  def stop(self):
+    with self.lock:
+      if not self.active():
+        return False
+      self.stop_requested = True
+      proc = self.proc
+      self._status, self.phase = "stopping", "Stopping…"
+    self.add_log("🛑 Stop requested by user.", "warn")
+    if proc and proc.poll() is None:
+      def killer():
+        try:
+          os.killpg(proc.pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
+          return
+        for _ in range(40):
+          if proc.poll() is not None:
+            return
+          time.sleep(0.25)
+        try:
+          os.killpg(proc.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+          pass
+      threading.Thread(target=killer, daemon=True).start()
+    return True
+
+  # -- start ---------------------------------------------------------------
+  def start(self, cfg):
+    cfg = merged(cfg)
+    paths, err = dm_check(cfg)
+    if err:
+      return {"ok": False, "error": err}
+    if self.active():
+      return {"ok": False, "error": "Tagging is already running."}
+    if TRAINER.active():
+      return {"ok": False, "error": "Training is running. Wait for it to finish or stop it first."}
+    model = cfg["dm_model"]
+    if model == "custom":
+      repo = cfg["dm_custom_model"].strip()
+      if not REPO_ID_RE.match(repo):
+        return {"ok": False, "error": "Custom model must be a Hugging Face repo id like user/model-name."}
+      models = [repo]
+    elif model in TAGGER_MODELS:
+      models = list(TAGGER_MODELS[model])
+    else:
+      return {"ok": False, "error": "Unknown tagger model."}
+    thr = to_float(cfg["dm_threshold"], 0.25)
+    if not 0.0 <= thr <= 1.0:
+      return {"ok": False, "error": "Threshold must be between 0 and 1."}
+    folder = paths["images"]
+    if not CFG["demo"]:
+      if not os.path.isdir(folder):
+        return {"ok": False, "error": f"Dataset folder not found: {folder}"}
+      if not dm_files(folder, SUPPORTED_IMAGES):
+        return {"ok": False, "error": f"No images found in {folder}"}
+    params = {"models": models, "threshold": thr, "characters": bool(cfg["dm_include_characters"]),
+              "blacklist": split_tags(cfg["dm_blacklist"]), "ext": cfg["caption_extension"]
+              if cfg["caption_extension"] in (".txt", ".caption") else ".txt"}
+    with self.lock:
+      self.run_id += 1
+      self.log, self.log_base, self.live, self.error, self.result = [], 0, "", None, None
+      self.progress = {"pct": 0.0, "model": 0, "models": len(models)}
+      self.stop_requested = False
+      self.started, self.ended = now(), None
+      self._status, self.phase = "installing" if not CFG["demo"] else "tagging", "Preparing…"
+    threading.Thread(target=self._run, args=(paths, params), daemon=True).start()
+    return {"ok": True, "run_id": self.run_id}
+
+  def _fail(self, message):
+    self.add_log("💥 " + message, "error")
+    with self.lock:
+      self.error = message
+      self._status, self.phase = "failed", message
+      self.ended = now()
+
+  def _run(self, paths, p):
+    try:
+      if CFG["demo"]:
+        return self._demo(paths, p)
+      if not self._install():
+        return
+      self.set_status("tagging", "Tagging images…")
+      d = self.dirs()
+      folder = paths["images"]
+      for i, repo in enumerate(p["models"]):
+        with self.lock:
+          self.progress["model"] = i
+          self.progress["pct"] = round(100.0 * i / len(p["models"]), 1)
+          self.phase = f"Tagging with {repo} ({i + 1}/{len(p['models'])})"
+        self.add_log(f"🏷️ Tagging with {repo}", "ok")
+        cmd = [d["python"], "finetune/tag_images_by_wd14_tagger.py", folder, f"--repo_id={repo}",
+               f"--general_threshold={p['threshold']}",
+               f"--character_threshold={p['threshold'] if p['characters'] else 1.1}",
+               "--batch_size=8", "--max_data_loader_n_workers=2", f"--caption_extension={p['ext']}",
+               "--onnx", "--recursive", "--remove_underscore"]
+        if p["blacklist"]:
+          cmd += ["--undesired_tags", ",".join(p["blacklist"])]
+        if i > 0:
+          cmd.append("--append_tags")
+        code = self.stream(cmd, cwd=d["kohya"])
+        if self.stop_requested:
+          return self._stopped()
+        if code != 0:
+          return self._fail(f"The tagger exited with code {code}. See the log.")
+      with self.lock:
+        self.progress["pct"] = 100.0
+      self._done(paths)
+    except Exception as e:            # never leave the UI stuck in "tagging"
+      self._fail(f"Unexpected error: {e}")
+
+  def _stopped(self):
+    self.add_log("🛑 Tagging stopped. Captions written so far are kept.", "warn")
+    with self.lock:
+      self._status, self.phase, self.ended = "stopped", "Stopped", now()
+
+  def _done(self, paths):
+    cfg = dict(DEFAULTS, **{"project_name": "", "dataset_folder": paths["images"]})
+    st = dm_stats(cfg, 5)
+    self.add_log(f"✅ Tagging complete: {st.get('captioned', 0)} captioned images, {st.get('unique', 0)} unique tags.", "ok")
+    with self.lock:
+      self.result = {"captioned": st.get("captioned", 0), "images": st.get("images", 0), "unique": st.get("unique", 0)}
+      self._status, self.phase, self.ended = "finished", "Finished", now()
+
+  def _install(self):
+    d = self.dirs()
+    if os.path.isfile(d["marker"]) and os.path.isfile(d["python"]):
+      self.add_log("✅ Tagger already installed in this session.", "ok")
+      return True
+    self.set_status("installing", "Installing the tagger (first time only, a few minutes)…")
+    self.add_log("🏭 Installing the tagger (same pinned sd-scripts as the Dataset Maker notebook)…", "ok")
+    can_apt = CFG["colab"] or (hasattr(os, "geteuid") and os.geteuid() == 0)
+    if can_apt:
+      for c in (["apt-get", "-y", "update", "-qq"], ["apt-get", "install", "-y", "python3.10-venv", "-qq"]):
+        if self.stream(c) != 0 and not self.stop_requested:
+          self._fail("apt install failed: " + " ".join(c[:4]))
+          return False
+    else:
+      self.add_log("Not root: skipping apt. Make sure python3-venv is installed.", "warn")
+    if self.stop_requested:
+      return self._stopped() or False
+    os.makedirs(d["base"], exist_ok=True)
+    shutil.rmtree(d["kohya"], ignore_errors=True)
+    py = shutil.which("python3.10") or sys.executable
+    steps = [
+      (["git", "clone", TAGGER_REPO, d["kohya"]], d["base"]),
+      (["git", "reset", "--hard", TAGGER_COMMIT], d["kohya"]),
+      ([py, "-m", "venv", "venv"], d["kohya"]),
+      ([d["pip"], "install", "-r", "requirements.txt"], d["kohya"]),
+      ([d["pip"], "install", "fairscale==0.4.13", "timm==0.6.12"], d["kohya"]),
+      ([d["pip"], "install", "onnx", "onnxruntime-gpu==1.20.2", "--extra-index-url",
+        "https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/"], d["kohya"]),
+      ([d["pip"], "install", "numpy==1.26.4"], d["kohya"]),
+    ]
+    for cmd, cwd in steps:
+      if self.stream(cmd, cwd=cwd) != 0:
+        if self.stop_requested:
+          return self._stopped() or False
+        self._fail("Install step failed: " + " ".join(cmd[:4]))
+        return False
+    self.stream([d["pip"], "uninstall", "-y", "rich"], cwd=d["kohya"])
+    open(d["marker"], "w").close()
+    self.add_log("✅ Tagger installed.", "ok")
+    return True
+
+  def _demo(self, paths, p):
+    folder = paths["images"]
+    real = os.path.realpath(folder)
+    if not real.startswith(os.path.realpath(CFG["root"]) + os.sep):
+      return self._fail("Demo mode only works inside the demo folder.")
+    os.makedirs(folder, exist_ok=True)
+    imgs = dm_files(folder, SUPPORTED_IMAGES)
+    if not imgs:
+      self.add_log("Demo: creating 24 tiny placeholder images.", "warn")
+      for i in range(24):
+        with open(os.path.join(folder, f"demo_{i:02d}.png"), "wb") as f:
+          f.write(_tiny_png(i))
+      imgs = dm_files(folder, SUPPORTED_IMAGES)
+    vocab = ["1girl", "solo", "long hair", "looking at viewer", "smile", "blush", "simple background", "white background",
+             "open mouth", "blue eyes", "brown hair", "school uniform", "skirt", "shirt", "standing", "upper body",
+             "bangs", "short hair", "outdoors", "sky", "cloud", "day", "tree", "hair ornament", "ribbon", "jacket",
+             "holding", "closed mouth", "black hair", "full body", "hat", "dress", "from side", "red eyes", "water",
+             "flower", "sitting", "bow", "gloves", "night", "virtual youtuber", "parody"]
+    weights = [1.0 / (i + 1) ** 0.8 for i in range(len(vocab))]
+    rnd = random.Random(7)
+    for mi, repo in enumerate(p["models"]):
+      with self.lock:
+        self.progress["model"] = mi
+        self.phase = f"Tagging with {repo} ({mi + 1}/{len(p['models'])})"
+      self.add_log(f"🏷️ Tagging with {repo} (demo)", "ok")
+      for k, img in enumerate(imgs):
+        if self.stop_requested:
+          return self._stopped()
+        picks = []
+        for t in rnd.choices(vocab, weights, k=rnd.randint(8, 18)):
+          if t not in picks and t not in p["blacklist"] and rnd.random() < 0.5 + p["threshold"] / 2 * 0.0 + (1 - p["threshold"]) * 0.5:
+            picks.append(t)
+        cp = caption_path(img, p["ext"])
+        old = []
+        if mi > 0 and os.path.isfile(cp):
+          with open(cp, encoding="utf-8") as f:
+            old = split_tags(f.read())
+        with open(cp, "w", encoding="utf-8") as f:
+          f.write(", ".join(old + [t for t in picks if t not in old]))
+        with self.lock:
+          frac = (k + 1) / len(imgs)
+          self.progress["pct"] = round(100.0 * (mi + frac) / len(p["models"]), 1)
+          self.live = f"{int(frac * 100)}%| {k + 1}/{len(imgs)} [demo]"
+        time.sleep(0.08)
+    self._done(paths)
+
+  # -- API -----------------------------------------------------------------
+  def poll(self, run, cursor):
+    with self.lock:
+      same = run == self.run_id
+      idx = max(0, (cursor if same else 0) - self.log_base)
+      lines = self.log[idx:idx + 800]
+      return {"run_id": self.run_id, "status": self._status, "phase": self.phase, "error": self.error,
+              "progress": dict(self.progress), "live": self.live, "started": self.started, "ended": self.ended,
+              "result": self.result, "reset": not same,
+              "lines": lines, "next": self.log_base + idx + len(lines)}
+
+
+TAGGER = Tagger()
+
+
+# --------------------------------------------------------------------------
 # settings persistence
 # --------------------------------------------------------------------------
 def settings_path():
@@ -1406,7 +1985,10 @@ def list_outputs(cfg):
       p = os.path.join(out_dir, n)
       if os.path.isfile(p):
         st = os.stat(p)
-        items.append({"name": n, "size": st.st_size, "mtime": st.st_mtime, "path": p})
+        item = {"name": n, "size": st.st_size, "mtime": st.st_mtime, "path": p}
+        if n.endswith(".safetensors"):
+          item["meta"] = read_lora_meta(p)
+        items.append(item)
   items.sort(key=lambda x: x["mtime"], reverse=True)
   return {"dir": out_dir, "files": items}
 
@@ -1491,10 +2073,11 @@ class Handler(BaseHTTPRequestHandler):
         lines, lnext = TRAINER.log_since(lc)
         samples, snext = SAMPLER.since(to_int(q.get("s"), 0))
         snap["tunnel_url"] = CFG["tunnel_url"]
+        snap_dm = TAGGER.poll(to_int(q.get("dr"), -1), to_int(q.get("dl"), 0))
         return self._send(200, {"status": snap, "reset": not same_run,
                                 "metrics": {"points": pts, "next": mnext},
                                 "log": {"lines": lines, "next": lnext},
-                                "system": {"samples": samples, "next": snext}})
+                                "system": {"samples": samples, "next": snext}, "dm": snap_dm})
       if u.path == "/api/info":
         return self._send(200, static_info())
       if u.path == "/api/download":
@@ -1548,11 +2131,33 @@ class Handler(BaseHTTPRequestHandler):
         info["paths"] = paths
         info["effective"] = effective_learning(cfg)
         return self._send(200, info)
+      if u.path == "/api/dm/stats":
+        return self._send(200, dm_stats(merged(body.get("config", {})), body.get("top", 50)))
+      if u.path == "/api/dm/tag":
+        res = TAGGER.start(body.get("config", {}))
+        if res["ok"]:
+          save_settings(body.get("config", {}))
+        return self._send(200 if res["ok"] else 400, res)
+      if u.path == "/api/dm/stop":
+        return self._send(200, {"ok": TAGGER.stop()})
+      if u.path == "/api/dm/activation":
+        cfg = merged(body.get("config", {}))
+        res = dm_add_tags(cfg, split_tags(cfg["dm_activation_tag"]))
+        if res["ok"]:
+          save_settings(body.get("config", {}))
+        return self._send(200 if res["ok"] else 400, res)
+      if u.path == "/api/lora_info":
+        lp = os.path.expanduser(str(body.get("path", "")).strip())
+        if not (lp.endswith(".safetensors") and os.path.isfile(lp)):
+          return self._send(200, {"ok": False, "error": "File not found (must be an existing .safetensors)."})
+        meta = read_lora_meta(lp)
+        return self._send(200, {"ok": meta is not None, "meta": meta, "error": None if meta else "Not a valid safetensors file."})
       if u.path == "/api/outputs":
         return self._send(200, list_outputs(body.get("config", {})))
       if u.path == "/api/preview":
         cfg = merged(body.get("config", {}))
         paths = paths_for(cfg)
+        cfg = apply_continue(cfg, paths)
         info = dataset_info(cfg, paths)
         info.setdefault("total_steps", 0)
         spec = model_spec(cfg)
@@ -1569,7 +2174,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-  ap = argparse.ArgumentParser(description="Kohya Trainer GUI")
+  ap = argparse.ArgumentParser(description="EasyTrainer GUI")
   ap.add_argument("--host", default="127.0.0.1")
   ap.add_argument("--port", type=int, default=7860)
   ap.add_argument("--root", default=None, help="local projects root (non-Colab). Default ~/Loras")
@@ -1615,7 +2220,7 @@ def main():
   server = ThreadingHTTPServer((a.host, a.port), Handler)
   server.daemon_threads = True
   url = f"http://{'127.0.0.1' if a.host in ('0.0.0.0', '') else a.host}:{a.port}"
-  print(f"Kohya Trainer GUI running at {url}  (colab={CFG['colab']}, demo={CFG['demo']})", flush=True)
+  print(f"EasyTrainer running at {url}  (colab={CFG['colab']}, demo={CFG['demo']})", flush=True)
   if a.host not in ("127.0.0.1", "localhost"):
     print("WARNING: listening on a non-loopback address. Anyone who can reach it can start training jobs.", flush=True)
   if not a.no_browser and not CFG["colab"]:

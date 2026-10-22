@@ -8,8 +8,9 @@ You can support me on [Buy me a coffee](https://buymeacoffee.com/holostrawberry)
 
 | |🇬🇧 English|🇪🇸 Spanish|
 |:--|:-:|:-:|
-| 📊 **Dataset Maker** | [![Open in Colab](https://raw.githubusercontent.com/hollowstrawberry/kohya-colab/main/assets/colab-badge.svg)](https://colab.research.google.com/github/hollowstrawberry/kohya-colab/blob/main/Dataset_Maker.ipynb) | [![Abrir en Colab](https://raw.githubusercontent.com/hollowstrawberry/kohya-colab/main/assets/colab-badge-spanish.svg)](https://colab.research.google.com/github/hollowstrawberry/kohya-colab/blob/main/Spanish_Dataset_Maker.ipynb) |
-| 🌟 **XL Lora Trainer** | [![Open in Colab](https://raw.githubusercontent.com/hollowstrawberry/kohya-colab/main/assets/colab-badge.svg)](https://colab.research.google.com/github/hollowstrawberry/kohya-colab/blob/main/Lora_Trainer_XL.ipynb) | - |
+| 📊 **Dataset Maker** | [![Open in Colab](https://raw.githubusercontent.com/AlamandaCathartica/EasyTrainer/main/assets/colab-badge.svg)](https://colab.research.google.com/github/AlamandaCathartica/EasyTrainer/blob/main/Dataset_Maker.ipynb) | [![Abrir en Colab](https://raw.githubusercontent.com/AlamandaCathartica/EasyTrainer/main/assets/colab-badge-spanish.svg)](https://colab.research.google.com/github/AlamandaCathartica/EasyTrainer/blob/main/Spanish_Dataset_Maker.ipynb) |
+| 🌟 **XL Lora Trainer** | [![Open in Colab](https://raw.githubusercontent.com/AlamandaCathartica/EasyTrainer/main/assets/colab-badge.svg)](https://colab.research.google.com/github/AlamandaCathartica/EasyTrainer/blob/main/Lora_Trainer_XL.ipynb) | - |
+| 🖥️ **EasyTrainer (GUI)** | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/AlamandaCathartica/EasyTrainer/blob/main/GUI_Trainer.ipynb) | - |
 | **Lora making Guide** | [Click Here](https://civitai.com/models/22530) | - |
 | **Stable Diffusion guide** | [Click Here](https://huggingface.co/hollowstrawberry/stable-diffusion-guide/blob/main/README.md#index) | [Click Aquí](https://huggingface.co/hollowstrawberry/stable-diffusion-guide/blob/main/spanish.md#index) |
 
@@ -52,7 +53,10 @@ You can support me on [Buy me a coffee](https://buymeacoffee.com/holostrawberry)
 * **Log**: live trainer output with filter, warning/error filters, follow, wrap, download.
 * **Outputs**: saved epochs with download. **System & config**: hardware/software versions, paths, and a preview of the generated TOML files.
 
-**Colab:** upload `gui/` to `MyDrive/Loras/_gui/gui/`, then run `GUI_Trainer.ipynb`; it opens a free Cloudflare tunnel link.
+**Colab:** [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/AlamandaCathartica/EasyTrainer/blob/main/GUI_Trainer.ipynb) Pick a GPU runtime and run the cell. Nothing needs to be uploaded: the notebook clones this repo into the Colab session, mounts Drive for your datasets/outputs, and opens a free Cloudflare tunnel link.
+**Dataset maker mode:** switch to *Dataset maker* at the top of the GUI to tag a dataset without leaving the page: pick a project name, choose the WD14 tagger model(s) and threshold (like step 4 of `Dataset_Maker.ipynb`), put a tag at the front of every `.txt`, and see a bar graph of the most common tags.
+
+**Continue mode:** switch to *Continue* to train an existing Lora further. Pick a saved `.safetensors` from the project's output folder (or paste a path); its rank (dim/alpha) and Lora type are read from the file's metadata so the shapes always match. Choose how many more epochs/steps and adjust the learning rates (there is a *Halve both LRs* shortcut). New checkpoints are saved as `<project>_cont-…` (a number is added if that name is taken), so your original files are never overwritten. Dataset, base model and optimizer are shared with the Trainer tab, and the same live monitor is used.
 **Local:** `python gui/kohya_gui.py` and open http://127.0.0.1:7860 (`--root`, `--port`, `--tunnel` available).
 **Preview without a GPU:** `python gui/kohya_gui.py --demo` simulates a training run.
 
