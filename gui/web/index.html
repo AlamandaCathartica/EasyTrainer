@@ -59,6 +59,7 @@
     /* app-level (not in the M3 spec): success / warning */
     --ok: #1B6B3A;          --ok-container: #C7F0D2;     --on-ok-container: #00210E;
     --warn: #8A5100;        --warn-container: #FFDDB8;   --on-warn-container: #2C1600;
+    --issue-container: #FFE29A; --on-issue-container: #2E2200; --issue-panel: #2E2200; --issue-btn: #6F5200; --on-issue-btn: #FFFFFF;
     --log-bg: #FFFFFF;
   }
   :root[data-theme="light"] { color-scheme: light; }
@@ -95,6 +96,7 @@
     --md-sys-color-inverse-on-surface: #322F35;
     --ok: #8BD6A0;         --ok-container: #0B3A1E;     --on-ok-container: #C7F0D2;
     --warn: #FFB963;       --warn-container: #4A2B00;   --on-warn-container: #FFDDB8;
+    --issue-container: #574100; --on-issue-container: #FFE9B3; --issue-panel: #FFE9B3; --issue-btn: #F6C94A; --on-issue-btn: #2E2200;
     --log-bg: #0F0D13;
   }
 
@@ -418,8 +420,24 @@
   }
   .snackbar.show{transform:translate(-50%,0);}
   /* ---- mode switch + dataset maker ---- */
-  .mode-seg{margin-top:12px;max-width:320px;}
-  body[data-mode="train"] [data-mode-only="data"], body[data-mode="data"] [data-mode-only="train"]{display:none !important;}
+  .mode-seg{margin-top:12px;max-width:440px;}
+  body[data-mode="train"] [data-mode-only]:not([data-mode-only~="train"]),
+  body[data-mode="data"] [data-mode-only]:not([data-mode-only~="data"]),
+  body[data-mode="continue"] [data-mode-only]:not([data-mode-only~="continue"]){display:none !important;}
+  /* ---- continue training ---- */
+  .ct-list{display:flex;flex-direction:column;gap:8px;max-height:320px;overflow:auto;}
+  .ct-item{display:grid;grid-template-columns:auto 1fr auto;gap:2px 12px;align-items:center;text-align:left;width:100%;
+    padding:12px 14px;border-radius:12px;border:1px solid var(--md-sys-color-outline-variant);background:transparent;
+    color:var(--md-sys-color-on-surface);cursor:pointer;font:inherit;}
+  .ct-item:hover{background:color-mix(in srgb,var(--md-sys-color-on-surface) 6%,transparent);}
+  .ct-item[aria-pressed="true"]{border-color:var(--md-sys-color-primary);background:color-mix(in srgb,var(--md-sys-color-primary) 12%,transparent);}
+  .ct-item .dot{width:18px;height:18px;border-radius:50%;border:2px solid var(--md-sys-color-outline);grid-row:1 / span 2;}
+  .ct-item[aria-pressed="true"] .dot{border-color:var(--md-sys-color-primary);background:radial-gradient(var(--md-sys-color-primary) 0 45%,transparent 50%);}
+  .ct-item .nm{font:500 14px/20px var(--font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .ct-item .sz{font:400 12px/16px var(--font);color:var(--md-sys-color-on-surface-variant);}
+  .ct-item .sub{grid-column:2 / span 2;font:400 12px/16px var(--font);color:var(--md-sys-color-on-surface-variant);}
+  .ct-item .badge{font:500 11px/16px var(--font);padding:0 8px;border-radius:8px;background:var(--md-sys-color-secondary-container);color:var(--md-sys-color-on-secondary-container);margin-left:6px;}
+  .ct-row{display:flex;gap:8px;flex-wrap:wrap;}
   .dmpanes > section{display:none;flex-direction:column;gap:12px;padding-top:12px;}
   .dmpanes > section.active{display:flex;}
   @media (min-width: 960px){ .dmpanes{flex:1;min-height:0;overflow:auto;padding-right:4px;} }
@@ -470,6 +488,22 @@
   .dialog .d-btn.tonal{background:transparent;color:var(--md-sys-color-on-error-container);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--md-sys-color-on-error-container) 55%,transparent);}
   .dialog .d-btn.tonal:hover{background:color-mix(in srgb,var(--md-sys-color-on-error-container) 10%,transparent);box-shadow:inset 0 0 0 1px var(--md-sys-color-on-error-container);filter:none;}
   html.conn-lock,html.conn-lock body{overflow:hidden !important;}
+  /* error dialog: same shape as the connection dialog, amber palette, scrollable details */
+  .scrim.issue{z-index:90;}
+  .issue .dialog{background:var(--issue-container);color:var(--on-issue-container);}
+  .issue .d-msg{
+    align-self:stretch;margin:16px 0 0;padding:16px 20px;border-radius:20px;text-align:left;
+    max-height:min(38vh,240px);overflow:auto;overscroll-behavior:contain;touch-action:pan-y;
+    background:color-mix(in srgb,var(--issue-panel) 12%,transparent);
+    font-size:15px;line-height:22px;font-weight:400;font-family:inherit;
+    scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--on-issue-container) 50%,transparent) transparent;
+  }
+  .issue .d-msg:focus-visible{outline:2px solid var(--on-issue-container);outline-offset:2px;}
+  .issue .d-msg .m{overflow-wrap:anywhere;word-break:break-word;}
+  .issue .d-msg .m + .m{margin-top:6px;}
+  .issue .d-actions{justify-content:flex-end;}
+  .issue .dialog .d-btn{background:var(--issue-btn);color:var(--on-issue-btn);}
+  .issue .dialog .d-btn:focus-visible{outline-color:var(--on-issue-container);}
   .scrim{overscroll-behavior:contain;touch-action:none;}
   .dialog .d-btn{
     border:0;cursor:pointer;height:40px;padding:0 24px;border-radius:20px;font-size:14px;line-height:20px;font-weight:500;font-family:inherit;
@@ -503,11 +537,13 @@
       <div class="seg mode-seg" id="modeSeg" role="group" aria-label="Mode">
         <button type="button" data-mode="train" aria-pressed="true">Trainer</button>
         <button type="button" data-mode="data" aria-pressed="false">Dataset maker</button>
+        <button type="button" data-mode="continue" aria-pressed="false" title="Continue training an existing Lora">Continue</button>
       </div>
     </header>
     <div id="formRoot" data-mode-only="train"></div>
     <div id="dmForm" data-mode-only="data"></div>
-    <div class="section" data-mode-only="train">
+    <div id="ctForm" data-mode-only="continue"></div>
+    <div class="section" data-mode-only="train continue">
       <div class="button-stack" style="display:flex;flex-direction:column;gap:12px">
         <button class="btn filled big" data-act="start" type="button"></button>
         <button class="btn danger big" data-act="stop" type="button"></button>
@@ -516,7 +552,7 @@
   </div>
 
   <!-- ====================== RIGHT: MONITOR ====================== -->
-  <div class="monitor-wrap" data-mode-only="train">
+  <div class="monitor-wrap" data-mode-only="train continue">
     <div class="monitor">
 
       <div class="panel run-card">
@@ -706,6 +742,15 @@
       <button class="d-btn tonal" id="connLog" type="button">Download log</button>
       <button class="d-btn" id="connRetry" type="button">Retry now</button>
     </div>
+  </div>
+</div>
+
+<div class="scrim issue" id="issue" hidden>
+  <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="issueTitle" aria-describedby="issueMsg">
+    <svg class="d-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+    <h2 id="issueTitle">Something went wrong</h2>
+    <div class="d-msg" id="issueMsg" tabindex="0"></div>
+    <div class="d-actions"><button class="d-btn" id="issueClose" type="button">Close</button></div>
   </div>
 </div>
 
@@ -936,22 +981,25 @@ function bindForm() {
     writeControls(k);
     applyConditions();
     if (k === "project_name") validateName();
+    if (k === "continue_from_lora") scheduleCtInfo();
+    if (k === "project_name" || k === "folder_structure") { clearTimeout(bindForm.ct); bindForm.ct = setTimeout(() => { if (document.body.dataset.mode === "continue") refreshCtList(); }, 500); }
     scheduleSave();
     if (DM_STATS_KEYS.has(k)) scheduleDmStats();
     if (RELEVANT.has(k)) scheduleDataset();
     if (k === "training_model" || k === "custom_model_url" || k === "optimizer") scheduleDataset();
   };
-  [$("#formRoot"), $("#dmForm"), $("#dmTopRow")].forEach((root) => {
+  [$("#formRoot"), $("#dmForm"), $("#dmTopRow"), $("#ctForm")].forEach((root) => {
     root.addEventListener("input", onChange);
     root.addEventListener("change", onChange);
   });
-  $("#formRoot").addEventListener("click", (e) => {
+  [$("#formRoot"), $("#ctForm")].forEach((root) => root.addEventListener("click", (e) => {
     const b = e.target.closest(".seg button"); if (!b) return;
     const k = b.parentElement.dataset.key;
     S.cfg[k] = b.dataset.val; writeControls(k); applyConditions(); scheduleSave();
     if (DM_STATS_KEYS.has(k)) scheduleDmStats();
     if (RELEVANT.has(k)) scheduleDataset();
-  });
+  }));
+  bindCt();
   applyConditions(); validateName();
 }
 function validateName() {
@@ -966,6 +1014,7 @@ const scheduleDataset = debounce(refreshDataset, 450);
 async function refreshDataset() {
   let d; try { d = await api("/api/dataset", { config: S.cfg }); } catch (e) { return; }
   S.ds = d; S.paths = d.paths || S.paths;
+  renderCtSummary();
   const box = $("#dsBox"); box.replaceChildren();
   if (d.empty) {
     box.appendChild(el("div", "banner info t-small", "Enter a project name to check your dataset."));
@@ -987,6 +1036,8 @@ async function refreshDataset() {
       const p = el("div", "pathline"); p.textContent = "dataset: " + d.paths.images; box.appendChild(p);
     }
   }
+  const cb = $("#ctDsBox");
+  if (cb) cb.replaceChildren(...$$(".banner", box).map((n) => n.cloneNode(true)));
   S.total = (S.status && S.status.progress && S.status.progress.total) || d.total_steps || 0;
   // learning-rate overrides (Prodigy / DAdapt)
   const hint = $("#effHint"), e = d.effective;
@@ -1001,9 +1052,11 @@ async function refreshDataset() {
 const ACTIVE = new Set(["validating", "installing", "downloading", "configuring", "training", "stopping"]);
 async function startTraining() {
   if (!String(S.cfg.project_name).trim()) { toast("Please enter a project name."); $('[data-key="project_name"]').focus(); showPane("setup"); return; }
+  S.cfg.continue_mode = document.body.dataset.mode === "continue";
+  if (S.cfg.continue_mode && !String(S.cfg.continue_from_lora || "").trim()) { toast("Pick the Lora you want to continue from."); showPane("setup"); return; }
   setErr("");
   const r = await api("/api/start", { config: S.cfg });
-  if (!r._ok || !r.ok) { setErr(r.error || "Could not start."); toast(r.error || "Could not start."); showPane("monitor"); return; }
+  if (!r._ok || !r.ok) { setErr(r.error || "Could not start."); showIssue("Training couldn't start", r.error || "The trainer did not accept this request."); return; }
   showPane("monitor"); showTab("overview");
 }
 async function stopTraining() {
@@ -1015,7 +1068,7 @@ $$("[data-act]").forEach((b) => b.addEventListener("click", () => b.dataset.act 
 
 
 /* ------------------------------------------------------------------ dataset maker */
-const DM = { run: -1, cur: 0, tab: "graph", prev: "idle", status: "idle" };
+const DM = { run: -1, cur: 0, tab: "graph", prev: null, status: "idle" };
 const DM_ACTIVE = new Set(["installing", "tagging", "stopping"]);
 const DM_STATS_KEYS = new Set(["project_name", "folder_structure", "dataset_folder", "caption_extension", "dm_top_n"]);
 const scheduleDmStats = debounce(() => refreshDmStats(), 450);
@@ -1050,11 +1103,137 @@ function buildDmForm() {
   ].join("");
 }
 
+/* ------------------------------------------------------------------ continue training */
+const CT = { meta: null, files: [] };
+function buildCtForm() {
+  const sched = ["constant", "cosine", "cosine_with_restarts", "constant_with_warmup", "linear", "polynomial", "rex"].map((x) => [x, x]);
+  $("#ctForm").innerHTML = [
+    F.panel("Project",
+      F.text("project_name", "Project name", { cls: "mono" }) +
+      F.select("folder_structure", "Folder structure", [["project", "By project (Loras/name/dataset)"], ["category", "By category (lora_training/datasets/name)"]]) +
+      `<div id="ctDsBox"></div>`,
+      "Uses the same dataset, base model and optimizer as the Trainer tab, so the continuation sees the same data."),
+    F.panel("Continue from",
+      `<div class="ct-list" id="ctList" role="radiogroup" aria-label="Saved Loras"></div>` +
+      `<div class="ct-row"><button class="btn tonal small" data-ct="refresh" type="button">Refresh list</button>
+         <button class="btn text small" data-ct="latest" type="button">Pick latest</button></div>` +
+      F.text("continue_from_lora", "…or a .safetensors path (Drive or disk)", { cls: "mono" }) +
+      `<div id="ctInfo"></div>`,
+      "Rank (dim/alpha) and Lora type are read from the file, so the shapes always match. Your original files are never overwritten."),
+    F.panel("How much more",
+      `<div><p class="subhead t-label" style="margin:0 0 8px">Train for</p>${F.seg("preferred_unit", [["epochs", "Epochs"], ["steps", "Steps"]])}</div>` +
+      F.slider("how_many", "Additional amount", 1, 100, 1, { field: true }) +
+      `<div class="grid-2">${F.num("save_every_n_epochs", "Save every N epochs")}${F.num("keep_only_last_n_epochs", "Keep last N epochs")}</div>` +
+      F.text("continue_suffix", "Name suffix for the new files", { cls: "mono" }) +
+      `<div id="ctSummary"></div>`,
+      "New checkpoints are saved as project + suffix (a number is added if that name is taken)."),
+    F.panel("Learning rate",
+      `<div class="grid-2">${F.text("unet_lr", "UNet LR", { cls: "mono" })}${F.text("text_encoder_lr", "Text encoder LR", { cls: "mono" })}</div>` +
+      F.select("lr_scheduler", "Scheduler", sched) +
+      F.slider("lr_warmup_ratio", "Warmup ratio", 0, 0.3, 0.01) +
+      `<div class="ct-row"><button class="btn tonal small" data-ct="halve" type="button">Halve both LRs</button>
+         <button class="btn text small" data-ct="trainer" type="button">More settings in Trainer…</button></div>`,
+      "A lower learning rate than the first run is a common choice when training a Lora further. Prodigy/DAdaptation ignore these values."),
+  ].join("");
+}
+function fmtLr(v) { const n = Number(v); return !isFinite(n) || n === 0 ? String(v) : n.toExponential(1).replace(/\.0e/, "e").replace("e+", "e").replace(/e(-?)0*(\d)/, "e$1$2"); }
+function ctDescribe(m) {
+  if (!m) return "";
+  if (!m.has_meta) return "";
+  const bits = [];
+  if (m.epoch) bits.push("epoch " + m.epoch);
+  if (m.steps) bits.push(m.steps.toLocaleString() + " steps");
+  if (m.dim) bits.push(`dim ${m.dim} / alpha ${+(+m.alpha).toFixed(2)}`);
+  if (m.lora_type === "LoCon" && m.conv_dim) bits.push(`LoCon conv ${m.conv_dim}/${m.conv_alpha}`);
+  return bits.join(" · ");
+}
+async function refreshCtList() {
+  const d = await api("/api/outputs", { config: S.cfg }).catch(() => null);
+  const box = $("#ctList"); if (!box) return;
+  box.replaceChildren();
+  const files = ((d && d.files) || []).filter((f) => f.name.endsWith(".safetensors"));
+  files.sort((a, b) => (b.mtime - a.mtime));
+  CT.files = files;
+  if (!files.length) {
+    const e = el("div", "banner info t-small", String(S.cfg.project_name || "").trim()
+      ? "No saved Loras for this project yet. Train once in the Trainer tab, or paste a path below."
+      : "Enter a project name to list its saved Loras, or paste a path below.");
+    box.appendChild(e); refreshCtInfo(); return;
+  }
+  files.forEach((f, i) => {
+    const b = el("button", "ct-item"); b.type = "button"; b.setAttribute("role", "radio"); b.dataset.path = f.path;
+    b.setAttribute("aria-pressed", String(f.path === S.cfg.continue_from_lora));
+    const nm = el("span", "nm", f.name);
+    if (i === 0) nm.appendChild(el("span", "badge", "latest"));
+    b.append(el("span", "dot"), nm, el("span", "sz", fmtBytes(f.size)),
+      el("span", "sub", [ctDescribe(f.meta) || "no training metadata", new Date(f.mtime * 1000).toLocaleString()].join(" · ")));
+    box.appendChild(b);
+  });
+  refreshCtInfo();
+}
+function ctSelect(path) {
+  S.cfg.continue_from_lora = path; writeControls("continue_from_lora"); scheduleSave();
+  $$("#ctList .ct-item").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.path === path)));
+  refreshCtInfo();
+}
+let ctInfoRun = 0;
+async function refreshCtInfo() {
+  const box = $("#ctInfo"); if (!box) return;
+  const path = String(S.cfg.continue_from_lora || "").trim(), run = ++ctInfoRun;
+  box.replaceChildren(); CT.meta = null;
+  if (!path) { renderCtSummary(); return; }
+  let r; try { r = await api("/api/lora_info", { path }); } catch (e) { return; }
+  if (run !== ctInfoRun) return;
+  if (!r.ok) { box.appendChild(el("div", "banner error t-small", r.error || "Could not read that file.")); renderCtSummary(); return; }
+  CT.meta = r.meta;
+  if (r.meta && r.meta.has_meta && r.meta.dim) {
+    const lines = [ctDescribe(r.meta)];
+    if (r.meta.base_model) lines.push("Trained on: " + r.meta.base_model);
+    box.appendChild(el("div", "banner info t-small", lines.join("\n")));
+    box.firstChild.style.whiteSpace = "pre-line";
+  } else {
+    box.appendChild(el("div", "banner info t-small", "No kohya training metadata in this file. Your Trainer network settings (dim/alpha/type) will be used and must match the file, or training will fail."));
+  }
+  renderCtSummary();
+}
+function renderCtSummary() {
+  const box = $("#ctSummary"); if (!box) return;
+  box.replaceChildren();
+  const d = S.ds, c = S.cfg;
+  if (!d || d.empty || !d.total_steps) return;
+  const start = CT.meta && CT.meta.epoch;
+  let t = c.preferred_unit === "epochs"
+    ? `+${d.epochs} epochs · about ${d.total_steps.toLocaleString()} steps (${Math.round(d.steps_per_epoch)} per epoch)`
+    : `+${d.total_steps.toLocaleString()} steps · about ${d.epochs} epochs`;
+  if (start && c.preferred_unit === "epochs") t += `\nSaved files restart at 1, so this ends at roughly epoch ${start + d.epochs} overall.`;
+  const b = el("div", "banner info t-small", t); b.style.whiteSpace = "pre-line"; box.appendChild(b);
+}
+function bindCt() {
+  $("#ctForm").addEventListener("click", (e) => {
+    const item = e.target.closest(".ct-item"); if (item) return ctSelect(item.dataset.path);
+    const a = e.target.closest("[data-ct]"); if (!a) return;
+    if (a.dataset.ct === "refresh") refreshCtList();
+    else if (a.dataset.ct === "latest") { if (CT.files[0]) ctSelect(CT.files[0].path); else toast("No saved Loras found yet."); }
+    else if (a.dataset.ct === "trainer") setMode("train");
+    else if (a.dataset.ct === "halve") {
+      ["unet_lr", "text_encoder_lr"].forEach((k) => { const n = Number(S.cfg[k]); if (n > 0) { S.cfg[k] = fmtLr(n / 2); writeControls(k); } });
+      scheduleSave(); scheduleDataset();
+    }
+  });
+}
+const scheduleCtInfo = debounce(() => { $$("#ctList .ct-item").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.path === S.cfg.continue_from_lora))); refreshCtInfo(); }, 400);
+
+function startLabel() { return document.body.dataset.mode === "continue" ? "Continue training" : "Start training"; }
+
 function setMode(m) {
   document.body.dataset.mode = m;
   $$("#modeSeg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === m)));
   try { localStorage.setItem("easytrainer-mode", m); } catch (e) {}
+  S.cfg.continue_mode = m === "continue";
   if (m === "data") { refreshDmStats(); renderDmStatus(); }
+  if (m === "continue") { refreshCtList(); refreshDataset(); }
+  if (S.status) renderStatus(S.status);
+  $$('[data-act="start"]').forEach((b) => { if (!S.status) b.innerHTML = icon("play") + startLabel(); });
   requestAnimationFrame(redrawAll);
 }
 $("#modeSeg").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setMode(b.dataset.mode); });
@@ -1140,6 +1319,7 @@ function handleDm(dm) {
     if (near) box.scrollTop = box.scrollHeight;
   }
   renderDmStatus();
+  if (dm.status === "failed" && dm.error && DM.prev && DM.prev !== "failed") showIssue("Tagging failed", dm.error);
   const was = DM_ACTIVE.has(DM.prev), now = DM_ACTIVE.has(dm.status);
   if (was && !now) refreshDmStats();                       // a run just ended: update the graph
   DM.prev = dm.status;
@@ -1148,14 +1328,14 @@ async function startTagging() {
   if (!String(S.cfg.project_name).trim()) { toast("Please enter a project name."); $('#dmForm [data-key="project_name"]').focus(); return; }
   dmSetErr("");
   const r = await api("/api/dm/tag", { config: S.cfg });
-  if (!r._ok || !r.ok) { dmSetErr(r.error || "Could not start."); toast(r.error || "Could not start."); showPane("monitor"); return; }
+  if (!r._ok || !r.ok) { dmSetErr(r.error || "Could not start."); showIssue("Tagging couldn't start", r.error || "The tagger did not accept this request."); return; }
   showPane("monitor");
   $$("#dmTabs .tab")[1].click();
 }
 async function addActivationTag() {
   if (!String(S.cfg.project_name).trim()) { toast("Please enter a project name."); $('#dmForm [data-key="project_name"]').focus(); return; }
   const r = await api("/api/dm/activation", { config: S.cfg });
-  if (!r._ok || !r.ok) { toast(r.error || "Could not add the tag."); return; }
+  if (!r._ok || !r.ok) { showIssue("Couldn't add the tag", r.error || "The tag could not be written to the dataset."); return; }
   toast(`Added "${r.tags.join(", ")}" to ${r.modified + r.created} of ${r.images} captions` +
         (r.created ? ` (${r.created} new files)` : "") + (r.unchanged ? `, ${r.unchanged} already had it first` : "") + ".", 7000);
   refreshDmStats();
@@ -1200,8 +1380,12 @@ function renderStatus(st) {
   const chip = $("#statusChip"); chip.textContent = label; chip.className = "status " + tone;
   $("#phaseText").textContent = st.phase || "";
   const active = ACTIVE.has(st.status);
-  $$('[data-act="start"]').forEach((b) => { b.disabled = active; b.innerHTML = icon("play") + "Start training"; });
+  $$('[data-act="start"]').forEach((b) => { b.disabled = active; b.innerHTML = icon("play") + startLabel(); });
   $$('[data-act="stop"]').forEach((b) => { b.disabled = !active || st.status === "stopping"; b.innerHTML = icon("stop") + (st.status === "stopping" ? "Stopping…" : "Stop"); });
+  if (S.lastCtStatus !== st.status) {
+    S.lastCtStatus = st.status;
+    if (document.body.dataset.mode === "continue" && !ACTIVE.has(st.status)) refreshCtList();
+  }
   const p = st.progress || {};
   const bar = $("#progress"), fill = $("#progress > div");
   const training = st.status === "training" && p.total;
@@ -1216,6 +1400,8 @@ function renderStatus(st) {
   $("#tElapsed").textContent = st.train_elapsed != null ? fmtDur(st.train_elapsed) : (p.elapsed || "–");
   $("#tEta").textContent = st.status === "training" && p.remaining ? p.remaining : (st.status === "finished" ? "0:00" : "–");
   $("#tLoss").textContent = p.loss != null ? p.loss.toFixed(4) : "–";
+  const prevSt = S.prevSt; S.prevSt = st.status;
+  if (st.status === "failed" && st.error && prevSt && prevSt !== "failed") showIssue("Training failed", st.error);   // once per failure; not for an old one on page load
   if (st.error && (st.status === "failed")) setErr(st.error);
   else if (st.status !== "failed" && $("#runError").textContent && ACTIVE.has(st.status)) setErr("");
   S.marks = st.epoch_marks || S.marks;
@@ -1641,6 +1827,45 @@ function lockPage(on) {
     root.classList.remove("conn-lock"); document.body.style.paddingRight = "";
   }
 }
+/* Whichever dialog is on top owns the page: everything else is inert and scrolling is locked. */
+function syncOverlays() {
+  const conn = $("#conn").classList.contains("show"), iss = $("#issue").classList.contains("show");
+  const top = conn ? $("#conn") : (iss ? $("#issue") : null);
+  [...document.body.children].forEach((n) => { if (n.tagName !== "SCRIPT") n.inert = !!top && n !== top; });
+  lockPage(conn || iss);
+}
+/* Error dialog (training / dataset-level problems). The red dialog above is for system / connection problems. */
+function showIssue(title, text) {
+  const d = $("#issue"), box = $("#issueMsg");
+  $("#issueTitle").textContent = title;
+  box.replaceChildren();
+  const lines = String(text || "").split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+  (lines.length ? lines : ["No further details were reported. Check the Log tab."]).forEach((l) => box.appendChild(el("div", "m", l)));
+  box.scrollTop = 0;
+  if (!d.classList.contains("show")) {
+    S.issueFocus = document.activeElement;
+    d.hidden = false; void d.offsetWidth; d.classList.add("show");
+  }
+  syncOverlays();
+  if (!$("#conn").classList.contains("show")) $("#issueClose").focus();
+}
+function hideIssue() {
+  const d = $("#issue");
+  if (!d.classList.contains("show")) return;
+  d.classList.remove("show");
+  syncOverlays();
+  setTimeout(() => { if (!d.classList.contains("show")) d.hidden = true; }, 300);
+  if (S.issueFocus && S.issueFocus.focus) try { S.issueFocus.focus(); } catch (e) {}
+}
+$("#issueClose").addEventListener("click", hideIssue);
+$("#issue").addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { e.preventDefault(); hideIssue(); }
+  else if (e.key === "Tab") {
+    e.preventDefault();
+    const m = $("#issueMsg"), scrollable = m.scrollHeight > m.clientHeight;
+    (scrollable && document.activeElement === $("#issueClose") ? m : $("#issueClose")).focus();
+  }
+});
 function connTick() {
   const sec = Math.max(0, Math.ceil((S.nextTry - Date.now()) / 1000));
   $("#connRetryMsg").textContent = S.nextTry ? `Retrying in ${sec}s…` : "Retrying…";
@@ -1656,8 +1881,7 @@ function connDialog(show) {
     if (!box.classList.contains("show")) {
       S.prevFocus = document.activeElement;
       box.hidden = false; void box.offsetWidth; box.classList.add("show");
-      [...document.body.children].forEach((n) => { if (n !== box && n.tagName !== "SCRIPT") n.inert = true; });
-      lockPage(true);
+      syncOverlays();
       $("#connRetry").focus();
       clearInterval(S.tickT); S.tickT = setInterval(connTick, 500);
     }
@@ -1665,10 +1889,9 @@ function connDialog(show) {
   } else {
     clearInterval(S.tickT);
     box.classList.remove("show");
-    [...document.body.children].forEach((n) => { n.inert = false; });
-    lockPage(false);
+    syncOverlays();
     setTimeout(() => { if (S.connected) box.hidden = true; }, 300);
-    if (S.prevFocus && S.prevFocus.focus) try { S.prevFocus.focus(); } catch (e) {}
+    if (!$("#issue").classList.contains("show") && S.prevFocus && S.prevFocus.focus) try { S.prevFocus.focus(); } catch (e) {}
   }
 }
 function connReport() {
@@ -1704,12 +1927,14 @@ function connReport() {
 $("#connLog").addEventListener("click", () => download(`incident-${(S.incident || {}).id || "conn"}.log`, connReport()));
 $("#connRetry").addEventListener("click", () => { poll(); });
 // scrolling is locked while the dialog is up: swallow wheel/touch/keys that would scroll the page behind it
-const _blockScroll = (e) => { if ($("#conn").classList.contains("show") && !e.target.closest(".dialog")) e.preventDefault(); };
-$("#conn").addEventListener("wheel", _blockScroll, { passive: false });
-$("#conn").addEventListener("touchmove", _blockScroll, { passive: false });
+const _blockScroll = (e) => { if (!e.target.closest(".dialog")) e.preventDefault(); };
+[$("#conn"), $("#issue")].forEach((b) => {
+  b.addEventListener("wheel", _blockScroll, { passive: false });
+  b.addEventListener("touchmove", _blockScroll, { passive: false });
+});
 window.addEventListener("keydown", (e) => {
-  if (!$("#conn").classList.contains("show")) return;
-  if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(e.key) && e.target.id !== "connRetry" && e.target.id !== "connLog") e.preventDefault();
+  if (!$("#conn").classList.contains("show") && !$("#issue").classList.contains("show")) return;
+  if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(e.key) && !["connRetry", "connLog", "issueClose", "issueMsg"].includes(e.target.id)) e.preventDefault();
 }, true);
 $("#conn").addEventListener("keydown", (e) => {
   if (e.key !== "Tab") return;
@@ -1720,18 +1945,18 @@ $("#conn").addEventListener("keydown", (e) => {
 
 /* ------------------------------------------------------------------ boot */
 async function boot() {
-  buildForm(); buildDmForm();
+  buildForm(); buildDmForm(); buildCtForm();
   const d = await api("/api/defaults");
   S.defaults = d.defaults; S.cfg = Object.assign({}, d.defaults, d.saved || {});
   S.info = d.info || {}; S.colab = d.colab; S.demo = d.demo; S.bundleRoot = d.bundle_root; S.settingsPath = d.settings_path;
   const tags = $("#tags");
   if (d.demo) tags.appendChild(el("span", "tag demo t-label", "DEMO · simulated training"));
   bindForm();
-  $$('[data-act="start"]').forEach((b) => (b.innerHTML = icon("play") + "Start training"));
+  $$('[data-act="start"]').forEach((b) => (b.innerHTML = icon("play") + startLabel()));
   $$('[data-act="stop"]').forEach((b) => { b.innerHTML = icon("stop") + "Stop"; b.disabled = true; });
   refreshDataset();
   let m0 = "train"; try { m0 = localStorage.getItem("easytrainer-mode") || "train"; } catch (e) {}
-  setMode(m0 === "data" ? "data" : "train");
+  setMode(m0 === "data" || m0 === "continue" ? m0 : "train");
   showTab("overview");
   poll();
   window.addEventListener("resize", debounce(redrawAll, 120));
