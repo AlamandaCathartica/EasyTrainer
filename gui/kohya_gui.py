@@ -503,7 +503,7 @@ def validate_config(cfg, paths, info):
 # --------------------------------------------------------------------------
 # continue training: read a saved Lora's metadata, pick a safe output name
 # --------------------------------------------------------------------------
-EPOCH_FILE_RE = re.compile(r"-(\d{4,6})\.safetensors$")
+EPOCH_FILE_RE = re.compile(r"-(\d{2,6})\.safetensors$")   # the patched trainer writes name-05.safetensors (2 digits)
 
 
 def read_lora_meta(path):
