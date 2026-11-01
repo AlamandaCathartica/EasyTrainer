@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="color-scheme" content="light dark" />
 <script>
-  // Apply saved theme (or the system preference) before first paint.
   (function () {
     var t = null;
     try { t = localStorage.getItem("kohya-theme"); } catch (e) {}
@@ -17,13 +16,8 @@
 </script>
 <title>EasyTrainer</title>
 <style>
-  /* hide every scrollbar (page, log, lists, text areas); scrolling by wheel, touch and keyboard still works */
   *{scrollbar-width:none;-ms-overflow-style:none;}
   *::-webkit-scrollbar{display:none;width:0;height:0;}
-  /* =====================================================================
-     THEME - Material 3 baseline scheme (seed #6750A4), same tokens as Plane.
-     No CDN, no web fonts: this page works with no internet access at all.
-     ===================================================================== */
   :root {
     color-scheme: light dark;
     --font: Roboto, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
@@ -204,9 +198,10 @@
     background:transparent;color:var(--md-sys-color-on-surface-variant);
   }
   .iconbtn:hover{background:color-mix(in srgb,var(--md-sys-color-on-surface) 8%,transparent);}
-  .iconbtn svg{width:22px;height:22px;}
+  .iconbtn svg,.iconbtn img{width:22px;height:22px;}
   .theme-toggle{border-radius:50%;}
   .ic{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+  .asset-icon{object-fit:contain;stroke:none;}
   .ic.fill{fill:currentColor;stroke:none;}
 
   /* outlined fields */
@@ -480,7 +475,7 @@
     transform:scale(.88) translateY(12px);opacity:0;transition:transform .3s cubic-bezier(.2,0,0,1.2),opacity .2s ease;
   }
   .scrim.show .dialog{transform:none;opacity:1;}
-  .dialog .d-icon{width:96px;height:96px;margin-bottom:8px;fill:currentColor;}
+  .dialog .asset-icon{width:96px;height:96px;margin-bottom:8px;}
   .dialog h2{margin:0;font-size:28px;line-height:36px;font-weight:500;font-family:inherit;}
   .dialog .d-sub{margin:0;font-size:16px;line-height:24px;font-weight:400;font-family:inherit;opacity:.85;}
   .dialog .d-info{
@@ -522,6 +517,49 @@
     border:2px solid currentColor;border-right-color:transparent;animation:dspin 1s linear infinite;}
   @keyframes dspin{to{transform:rotate(360deg);}}
   @media (prefers-reduced-motion:reduce){.scrim,.dialog{transition:none;}.dialog .d-spin{animation:none;}}
+
+  .asset-icon {
+  width: 22px;
+  height: 22px;
+  display: inline-block;
+  flex: none;
+  background-color: currentColor;
+}
+
+.dark-mode-icon {
+  mask: url("/assets/dark_mode_120dp_E3E3E3_FILL0_wght500_GRAD0_opsz48.svg") center / contain no-repeat;
+  -webkit-mask: url("/assets/dark_mode_120dp_E3E3E3_FILL0_wght500_GRAD0_opsz48.svg") center / contain no-repeat;
+}
+
+.light-mode-icon {
+  mask: url("/assets/light_mode_120dp_E3E3E3_FILL0_wght500_GRAD0_opsz48.svg") center / contain no-repeat;
+  -webkit-mask: url("/assets/light_mode_120dp_E3E3E3_FILL0_wght500_GRAD0_opsz48.svg") center / contain no-repeat;
+}
+
+.delete-icon {
+  mask: url("/assets/delete_120dp_E3E3E3_FILL0_wght500_GRAD0_opsz48.svg") center / contain no-repeat;
+  -webkit-mask: url("/assets/delete_120dp_E3E3E3_FILL0_wght500_GRAD0_opsz48.svg") center / contain no-repeat;
+}
+.download-icon {
+  mask: url("/assets/download_120dp_E3E3E3_FILL0_wght500_GRAD0_opsz48.svg") center / contain no-repeat;
+  -webkit-mask: url("/assets/download_120dp_E3E3E3_FILL0_wght500_GRAD0_opsz48.svg") center / contain no-repeat;
+}
+.play-icon {
+  mask: url("/assets/play_arrow_120dp_E3E3E3_FILL0_wght500_GRAD0_opsz48.svg") center / contain no-repeat;
+  -webkit-mask: url("/assets/play_arrow_120dp_E3E3E3_FILL0_wght500_GRAD0_opsz48.svg") center / contain no-repeat;
+}
+.stop-icon {
+  mask: url("/assets/stop_120dp_E3E3E3_FILL0_wght500_GRAD0_opsz48.svg") center / contain no-repeat;
+  -webkit-mask: url("/assets/stop_120dp_E3E3E3_FILL0_wght500_GRAD0_opsz48.svg") center / contain no-repeat;
+}
+.warning-icon {
+  mask: url("/assets/warning_120dp_E3E3E3_FILL1_wght500_GRAD0_opsz48.svg") center / contain no-repeat;
+  -webkit-mask: url("/assets/warning_120dp_E3E3E3_FILL1_wght500_GRAD0_opsz48.svg") center / contain no-repeat;
+}
+.error-icon {
+  mask: url("/assets/error_120dp_E3E3E3_FILL1_wght500_GRAD0_opsz48.svg") center / contain no-repeat;
+  -webkit-mask: url("/assets/error_120dp_E3E3E3_FILL1_wght500_GRAD0_opsz48.svg") center / contain no-repeat;
+}
 </style>
 </head>
 <body data-pane="setup">
@@ -736,7 +774,7 @@
 <div class="snackbar t-body" id="snack" role="status" aria-live="polite"></div>
 <div class="scrim" id="conn" hidden>
   <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="connTitle" aria-describedby="connInfo">
-    <svg class="d-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+    <span class="asset-icon error-icon" aria-hidden="true"></span>
     <h2 id="connTitle">Lost connection to the server.</h2>
     <p class="d-sub"><span class="d-spin" aria-hidden="true"></span><span id="connRetryMsg">Retrying…</span></p>
     <div class="d-info" id="connInfo">
@@ -754,7 +792,7 @@
 
 <div class="scrim issue" id="issue" hidden>
   <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="issueTitle" aria-describedby="issueMsg">
-    <svg class="d-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+    <span class="asset-icon warning-icon" aria-hidden="true"></span>
     <h2 id="issueTitle">Something went wrong</h2>
     <div class="d-msg" id="issueMsg" tabindex="0"></div>
     <div class="d-actions"><button class="d-btn" id="issueClose" type="button">Close</button></div>
@@ -768,12 +806,12 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
 /* ------------------------------------------------------------------ icons */
 const ICONS = {
-  play:  '<svg class="ic fill" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>',
-  stop:  '<svg class="ic fill" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>',
-  moon:  '<svg class="ic" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>',
-  sun:   '<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
-  download: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14"/></svg>',
-  trash: '<svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+  play:  '<span class="asset-icon play-icon" aria-hidden="true"></span>',
+  stop:  '<span class="asset-icon stop-icon" aria-hidden="true"></span>',
+  moon: '<span class="asset-icon dark-mode-icon" aria-hidden="true"></span>',
+  sun:  '<span class="asset-icon light-mode-icon" aria-hidden="true"></span>',
+  download: '<span class="asset-icon download-icon" aria-hidden="true"></span>',
+  trash: '<span class="asset-icon delete-icon" aria-hidden="true"></span>',
 };
 const icon = (n) => ICONS[n] || "";
 

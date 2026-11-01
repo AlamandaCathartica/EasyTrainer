@@ -44,7 +44,8 @@ except ImportError:  # the GUI still works, with /proc fallbacks
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WEB_DIR = os.path.join(HERE, "web")
-PARENT = os.path.dirname(HERE)  # where train_network_wrapper.py / offline_bundle.py live
+PARENT = os.path.dirname(HERE)
+ASSETS_DIR = os.path.join(PARENT, "assets")
 
 # --------------------------------------------------------------------------
 # environment
@@ -2059,6 +2060,29 @@ class Handler(BaseHTTPRequestHandler):
       if u.path in ("/", "/index.html"):
         with open(os.path.join(WEB_DIR, "index.html"), "rb") as f:
           return self._send(200, f.read(), "text/html; charset=utf-8")
+      if u.path.startswith("/assets/"):
+        rel = urllib.parse.unquote(u.path[len("/assets/"):])
+
+        if not rel or "\\" in rel:
+          return self._send(404, {"error": "asset not found"})
+
+        root = os.path.realpath(ASSETS_DIR)
+        path = os.path.realpath(os.path.join(root, *rel.split("/")))
+
+        try:
+          inside_root = os.path.commonpath([root, path]) == root
+        except ValueError:
+          inside_root = False
+
+        if not inside_root or not os.path.isfile(path):
+          return self._send(404, {"error": "asset not found"})
+
+        ctype = mimetypes.guess_type(path)[0] or "application/octet-stream"
+        if path.lower().endswith(".svg"):
+          ctype = "image/svg+xml"
+
+        with open(path, "rb") as f:
+          return self._send(200, f.read(), ctype)
       if u.path == "/api/defaults":
         return self._send(200, {"defaults": DEFAULTS, "saved": load_settings(), "colab": CFG["colab"],
                                 "demo": CFG["demo"], "bundle_root": CFG["bundle_root"],
