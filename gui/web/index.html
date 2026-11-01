@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="color-scheme" content="light dark" />
 <script>
-  // Apply saved theme (or the system preference) before first paint.
   (function () {
     var t = null;
     try { t = localStorage.getItem("kohya-theme"); } catch (e) {}
@@ -17,13 +16,8 @@
 </script>
 <title>EasyTrainer</title>
 <style>
-  /* hide every scrollbar (page, log, lists, text areas); scrolling by wheel, touch and keyboard still works */
   *{scrollbar-width:none;-ms-overflow-style:none;}
   *::-webkit-scrollbar{display:none;width:0;height:0;}
-  /* =====================================================================
-     THEME - Material 3 baseline scheme (seed #6750A4), same tokens as Plane.
-     No CDN, no web fonts: this page works with no internet access at all.
-     ===================================================================== */
   :root {
     color-scheme: light dark;
     --font: Roboto, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
@@ -204,9 +198,10 @@
     background:transparent;color:var(--md-sys-color-on-surface-variant);
   }
   .iconbtn:hover{background:color-mix(in srgb,var(--md-sys-color-on-surface) 8%,transparent);}
-  .iconbtn svg{width:22px;height:22px;}
+  .iconbtn svg,.iconbtn img{width:22px;height:22px;}
   .theme-toggle{border-radius:50%;}
   .ic{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+  .asset-icon{object-fit:contain;stroke:none;}
   .ic.fill{fill:currentColor;stroke:none;}
 
   /* outlined fields */
@@ -480,7 +475,7 @@
     transform:scale(.88) translateY(12px);opacity:0;transition:transform .3s cubic-bezier(.2,0,0,1.2),opacity .2s ease;
   }
   .scrim.show .dialog{transform:none;opacity:1;}
-  .dialog .d-icon{width:96px;height:96px;margin-bottom:8px;fill:currentColor;}
+  .dialog .asset-icon{width:96px;height:96px;margin-bottom:8px;}
   .dialog h2{margin:0;font-size:28px;line-height:36px;font-weight:500;font-family:inherit;}
   .dialog .d-sub{margin:0;font-size:16px;line-height:24px;font-weight:400;font-family:inherit;opacity:.85;}
   .dialog .d-info{
@@ -522,6 +517,74 @@
     border:2px solid currentColor;border-right-color:transparent;animation:dspin 1s linear infinite;}
   @keyframes dspin{to{transform:rotate(360deg);}}
   @media (prefers-reduced-motion:reduce){.scrim,.dialog{transition:none;}.dialog .d-spin{animation:none;}}
+
+  .asset-icon {
+  width: 22px;
+  height: 22px;
+  display: inline-block;
+  flex: none;
+  background-color: currentColor;
+}
+
+/* Icons. The SVG code is inlined (same content as the files in /assets), so no request is needed,
+   including for the red dialog, which only shows when the server is unreachable. */
+:root {
+  /* dark_mode_120dp_E3E3E3_FILL0_wght500_GRAD0_opsz48.svg */
+  --svg-dark-mode: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' height='48px' width='48px' fill='%23e3e3e3'%3E%3Cpath d='M24.01%2C42.13q-7.61%2C0-12.88-5.26T5.87%2C24q0-6.61 3.78-11.3T19.81%2C6.48q1.11-0.3 1.89-0.12t1.24%2C0.73q0.45%2C0.51 0.49%2C1.3T23.1%2C10.25q-0.33%2C1.11-0.54%2C2.23t-0.21%2C2.24q0%2C4.56 3.2%2C7.76t7.77%2C3.2q1.14%2C0 2.23-0.17t2.14-0.47q1.17-0.35 2-0.26t1.32%2C0.55t0.62%2C1.27t-0.17%2C1.96q-1.53%2C5.91-6.18%2C9.74T24.01%2C42.13Zm0-3.41q5.21%2C0 9.11-3.2t4.91-7.49q-1.15%2C0.51-2.49%2C0.77t-2.68%2C0.23q-5.71-0.16-9.72-4.13t-4.17-9.76q0-1.09 0.22-2.38t0.83-2.94q-4.64%2C1.37-7.69%2C5.36T9.29%2C24q0%2C6.14 4.29%2C10.43t10.43%2C4.29ZM23.69%2C24.27Z'/%3E%3C/svg%3E");
+  /* light_mode_120dp_E3E3E3_FILL0_wght500_GRAD0_opsz48.svg */
+  --svg-light-mode: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' height='48px' width='48px' fill='%23e3e3e3'%3E%3Cpath d='M28.66%2C28.67q1.93-1.91 1.93-4.66t-1.92-4.67t-4.66-1.93t-4.67%2C1.92t-1.92%2C4.66t1.91%2C4.67t4.66%2C1.92t4.67-1.91ZM16.93%2C31.08Q14%2C28.15 14%2C24t2.93-7.08T24%2C14t7.08%2C2.92T34%2C24t-2.92%2C7.07T24%2C34t-7.07-2.93ZM3.5%2C25.7q-0.72%2C0-1.21-0.49T1.8%2C23.99t0.49-1.21T3.5%2C22.3h5q0.72%2C0 1.21%2C0.49t0.49%2C1.22T9.71%2C25.22T8.5%2C25.7h-5Zm36%2C0q-0.72%2C0-1.21-0.49T37.8%2C23.99t0.49-1.21T39.5%2C22.3h5q0.72%2C0 1.21%2C0.49t0.49%2C1.22t-0.49%2C1.21T44.5%2C25.7h-5ZM22.78%2C9.71Q22.3%2C9.22 22.3%2C8.5v-5q0-0.72 0.49-1.21T24.01%2C1.8t1.21%2C0.49T25.7%2C3.5v5q0%2C0.72-0.49%2C1.21T23.99%2C10.2T22.78%2C9.71Zm0%2C36Q22.3%2C45.22 22.3%2C44.5v-5q0-0.72 0.49-1.21t1.22-0.49t1.21%2C0.49T25.7%2C39.5v5q0%2C0.72-0.49%2C1.21T23.99%2C46.2t-1.21-0.49ZM11.86%2C14.26l-2.85-2.8Q8.5%2C10.95 8.52%2C10.23T9%2C9q0.5-0.5 1.21-0.5t1.23%2C0.51l2.81%2C2.85q0.46%2C0.51 0.46%2C1.19t-0.46%2C1.17q-0.47%2C0.48-1.18%2C0.5t-1.22-0.46Zm24.7%2C24.74l-2.81-2.85q-0.46-0.51-0.46-1.21t0.48-1.18q0.48-0.51 1.17-0.51t1.2%2C0.51l2.85%2C2.79q0.51%2C0.51 0.49%2C1.22T39%2C39q-0.5%2C0.5-1.21%2C0.5t-1.23-0.51Zm-2.8-24.74q-0.51-0.51-0.51-1.2t0.51-1.2l2.79-2.85q0.51-0.51 1.22-0.49T39%2C9q0.5%2C0.5 0.5%2C1.21t-0.51%2C1.23l-2.85%2C2.81q-0.46%2C0.46-1.16%2C0.46t-1.23-0.46ZM9%2C39q-0.5-0.5-0.5-1.21t0.51-1.23l2.85-2.81q0.5-0.51 1.18-0.51t1.18%2C0.51q0.53%2C0.51 0.53%2C1.2t-0.51%2C1.2l-2.79%2C2.85q-0.51%2C0.51-1.22%2C0.49T9%2C39ZM24%2C24Z'/%3E%3C/svg%3E");
+  /* delete_120dp_E3E3E3_FILL0_wght500_GRAD0_opsz48.svg */
+  --svg-delete: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' height='48px' width='48px' fill='%23e3e3e3'%3E%3Cpath d='M12.95%2C42.3q-1.42%2C0-2.42-0.99t-1-2.41V10.6H8.99q-0.72%2C0-1.21-0.49T7.28%2C8.88T7.77%2C7.67T8.99%2C7.19H17.2q0-0.73 0.49-1.22T18.9%2C5.47H29.09q0.72%2C0 1.21%2C0.5t0.49%2C1.22h8.22q0.72%2C0 1.21%2C0.49T40.72%2C8.9t-0.49%2C1.21T39.01%2C10.6H38.46v28.3q0%2C1.42-1%2C2.41T35.05%2C42.3H12.95ZM35.05%2C10.6H12.95v28.3H35.05V10.6ZM20.94%2C34.23q0.45-0.46 0.45-1.13V16.33q0-0.67-0.46-1.13t-1.15-0.46T18.65%2C15.2t-0.45%2C1.13V33.09q0%2C0.67 0.46%2C1.13t1.15%2C0.46t1.14-0.46Zm8.41%2C0q0.46-0.46 0.46-1.13V16.33q0-0.67-0.47-1.13T28.2%2C14.74T27.06%2C15.2T26.6%2C16.33V33.09q0%2C0.67 0.47%2C1.13t1.15%2C0.46t1.14-0.46ZM12.95%2C10.6v28.3V10.6Z'/%3E%3C/svg%3E");
+  /* download_120dp_E3E3E3_FILL0_wght500_GRAD0_opsz48.svg */
+  --svg-download: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' height='48px' width='48px' fill='%23e3e3e3'%3E%3Cpath d='M23.37%2C31.43q-0.3-0.12-0.57-0.4l-7.68-7.68q-0.51-0.52-0.48-1.23t0.52-1.21q0.53-0.51 1.24-0.5t1.22%2C0.52l4.7%2C4.73V9.4q0-0.72 0.49-1.22t1.22-0.5t1.21%2C0.5T25.7%2C9.4V25.67l4.75-4.73q0.5-0.51 1.18-0.5t1.21%2C0.52q0.5%2C0.51 0.5%2C1.22t-0.52%2C1.23l-7.62%2C7.63q-0.28%2C0.27-0.58%2C0.4t-0.63%2C0.12t-0.63-0.12ZM11.11%2C40.3q-1.38%2C0-2.39-1.01T7.7%2C36.89V31.45q0-0.72 0.49-1.21t1.22-0.49t1.21%2C0.49t0.48%2C1.21v5.45H36.89V31.45q0-0.72 0.49-1.21t1.22-0.49t1.22%2C0.49t0.49%2C1.21v5.45q0%2C1.38-1.02%2C2.39t-2.4%2C1.01H11.11Z'/%3E%3C/svg%3E");
+  /* play_arrow_120dp_E3E3E3_FILL1_wght500_GRAD0_opsz24.svg */
+  --svg-play: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' height='48px' width='48px' fill='%23e3e3e3'%3E%3Cpath d='M7.8%2C17.29V6.71q0-0.49 0.34-0.81t0.8-0.32q0.14%2C0 0.3%2C0.04t0.3%2C0.13l8.33%2C5.29q0.25%2C0.17 0.39%2C0.43T18.38%2C12t-0.13%2C0.54t-0.39%2C0.43L9.54%2C18.26q-0.14%2C0.09-0.3%2C0.13t-0.3%2C0.04q-0.45%2C0-0.8-0.32T7.8%2C17.29Z'/%3E%3C/svg%3E");
+  /* resume_120dp_E3E3E3_FILL1_wght500_GRAD0_opsz24.svg */
+  --svg-resume: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' height='48px' width='48px' fill='%23e3e3e3'%3E%3Cpath d='M5.62%2C17.24V6.76q0-0.48 0.33-0.81T6.76%2C5.62T7.57%2C5.95T7.9%2C6.76V17.24q0%2C0.48-0.33%2C0.81T6.76%2C18.38T5.95%2C18.05T5.62%2C17.24Zm6%2C0.12q-0.57%2C0.34-1.15%2C0T9.9%2C16.37V7.63q0-0.65 0.58-0.99t1.15%2C0l7.37%2C4.39q0.57%2C0.34 0.57%2C0.98t-0.57%2C0.98l-7.37%2C4.39Z'/%3E%3C/svg%3E");
+  /* stop_120dp_E3E3E3_FILL1_wght500_GRAD0_opsz24.svg */
+  --svg-stop: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' height='48px' width='48px' fill='%23e3e3e3'%3E%3Cpath d='M5.8%2C15.93V8.07q0-0.94 0.67-1.61T8.07%2C5.8h7.86q0.94%2C0 1.61%2C0.67T18.2%2C8.07v7.86q0%2C0.94-0.67%2C1.61T15.93%2C18.2H8.07q-0.94%2C0-1.61-0.67T5.8%2C15.93Z'/%3E%3C/svg%3E");
+  /* warning_120dp_E3E3E3_FILL1_wght500_GRAD0_opsz48.svg */
+  --svg-warning: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' height='48px' width='48px' fill='%23e3e3e3'%3E%3Cpath d='M4.7%2C42.16q-0.51%2C0-0.88-0.24T3.22%2C41.3T2.97%2C40.48t0.25-0.89L22.52%2C6.25Q22.79%2C5.8 23.17%2C5.6T24%2C5.4t0.83%2C0.2t0.65%2C0.65l19.3%2C33.33q0.27%2C0.46 0.25%2C0.89T44.78%2C41.3t-0.6%2C0.62T43.3%2C42.16H4.7ZM25.3%2C35.68q0.44-0.44 0.44-1.1t-0.44-1.1t-1.1-0.44t-1.1%2C0.44t-0.44%2C1.1t0.44%2C1.1t1.1%2C0.44t1.1-0.44Zm-0.03-5.51q0.43-0.43 0.43-1.08V21q0-0.65-0.43-1.07T24.2%2C19.5t-1.08%2C0.43T22.7%2C21v8.1q0%2C0.65 0.42%2C1.08T24.2%2C30.6t1.07-0.42Z'/%3E%3C/svg%3E");
+  /* error_120dp_E3E3E3_FILL1_wght500_GRAD0_opsz48.svg */
+  --svg-error: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' height='48px' width='48px' fill='%23e3e3e3'%3E%3Cpath d='M25.37%2C33.76q0.55-0.54 0.55-1.36t-0.54-1.38T24%2C30.47t-1.37%2C0.55T22.09%2C32.4t0.54%2C1.36T24%2C34.3t1.37-0.54Zm0-7.89q0.48-0.49 0.48-1.21V15.21q0-0.72-0.49-1.21t-1.22-0.49T22.93%2C14t-0.48%2C1.21v9.45q0%2C0.72 0.49%2C1.21t1.22%2C0.49t1.21-0.49ZM24.01%2C44.3q-4.21%2C0-7.9-1.59T9.65%2C38.35T5.3%2C31.88T3.7%2C23.98T5.3%2C16.07T9.65%2C9.63t6.46-4.34t7.91-1.6t7.91%2C1.6t6.44%2C4.34t4.34%2C6.44t1.6%2C7.91t-1.6%2C7.9t-4.34%2C6.45T31.93%2C42.7t-7.91%2C1.6Z'/%3E%3C/svg%3E");
+}
+
+.dark-mode-icon {
+  mask: var(--svg-dark-mode) center / contain no-repeat;
+  -webkit-mask: var(--svg-dark-mode) center / contain no-repeat;
+}
+.light-mode-icon {
+  mask: var(--svg-light-mode) center / contain no-repeat;
+  -webkit-mask: var(--svg-light-mode) center / contain no-repeat;
+}
+.delete-icon {
+  mask: var(--svg-delete) center / contain no-repeat;
+  -webkit-mask: var(--svg-delete) center / contain no-repeat;
+}
+.download-icon {
+  mask: var(--svg-download) center / contain no-repeat;
+  -webkit-mask: var(--svg-download) center / contain no-repeat;
+}
+.play-icon {
+  mask: var(--svg-play) center / contain no-repeat;
+  -webkit-mask: var(--svg-play) center / contain no-repeat;
+}
+.resume-icon {
+  mask: var(--svg-resume) center / contain no-repeat;
+  -webkit-mask: var(--svg-resume) center / contain no-repeat;
+}
+.stop-icon {
+  mask: var(--svg-stop) center / contain no-repeat;
+  -webkit-mask: var(--svg-stop) center / contain no-repeat;
+}
+.warning-icon {
+  mask: var(--svg-warning) center / contain no-repeat;
+  -webkit-mask: var(--svg-warning) center / contain no-repeat;
+}
+.error-icon {
+  mask: var(--svg-error) center / contain no-repeat;
+  -webkit-mask: var(--svg-error) center / contain no-repeat;
+}
 </style>
 </head>
 <body data-pane="setup">
@@ -611,7 +674,7 @@
             <div class="toolbar">
               <div class="slider-inline t-small">
                 <span>Smoothing</span>
-                <input type="range" id="smoothRange" min="0" max="0.99" step="0.01" value="0.6" aria-label="Smoothing">
+                <input type="range" autocomplete="off" id="smoothRange" min="0" max="0.99" step="0.01" value="0.6" aria-label="Smoothing">
                 <span class="mono" id="smoothVal" style="min-width:34px;text-align:right">0.60</span>
               </div>
               <label class="sw-row" style="gap:10px"><span class="t-body">Log scale</span>
@@ -717,7 +780,7 @@
             </div>
             <div class="slider-row" data-field="dm_top_n" id="dmTopRow">
               <span class="row-label t-body">Tags shown</span><span class="row-value t-body" data-val-for="dm_top_n"></span>
-              <input type="range" data-key="dm_top_n" data-range min="5" max="100" step="5" aria-label="Tags shown">
+              <input type="range" autocomplete="off" data-key="dm_top_n" data-range min="5" max="100" step="5" aria-label="Tags shown">
             </div>
             <div id="dmBars" class="tagbars" role="list"></div>
           </div>
@@ -736,7 +799,7 @@
 <div class="snackbar t-body" id="snack" role="status" aria-live="polite"></div>
 <div class="scrim" id="conn" hidden>
   <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="connTitle" aria-describedby="connInfo">
-    <svg class="d-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+    <span class="asset-icon error-icon" aria-hidden="true"></span>
     <h2 id="connTitle">Lost connection to the server.</h2>
     <p class="d-sub"><span class="d-spin" aria-hidden="true"></span><span id="connRetryMsg">Retrying…</span></p>
     <div class="d-info" id="connInfo">
@@ -754,7 +817,7 @@
 
 <div class="scrim issue" id="issue" hidden>
   <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="issueTitle" aria-describedby="issueMsg">
-    <svg class="d-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+    <span class="asset-icon warning-icon" aria-hidden="true"></span>
     <h2 id="issueTitle">Something went wrong</h2>
     <div class="d-msg" id="issueMsg" tabindex="0"></div>
     <div class="d-actions"><button class="d-btn" id="issueClose" type="button">Close</button></div>
@@ -768,12 +831,13 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
 /* ------------------------------------------------------------------ icons */
 const ICONS = {
-  play:  '<svg class="ic fill" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>',
-  stop:  '<svg class="ic fill" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>',
-  moon:  '<svg class="ic" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>',
-  sun:   '<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
-  download: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14"/></svg>',
-  trash: '<svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+  play:  '<span class="asset-icon play-icon" aria-hidden="true"></span>',
+  stop:  '<span class="asset-icon stop-icon" aria-hidden="true"></span>',
+  resume: '<span class="asset-icon resume-icon" aria-hidden="true"></span>',
+  moon: '<span class="asset-icon dark-mode-icon" aria-hidden="true"></span>',
+  sun:  '<span class="asset-icon light-mode-icon" aria-hidden="true"></span>',
+  download: '<span class="asset-icon download-icon" aria-hidden="true"></span>',
+  trash: '<span class="asset-icon delete-icon" aria-hidden="true"></span>',
 };
 const icon = (n) => ICONS[n] || "";
 
@@ -854,7 +918,7 @@ const F = {
   slider: (k, label, min, max, step, o = {}) => `<div class="slider-row ${o.field ? "with-field" : ""}" data-field="${k}">
       <span class="row-label t-body">${label}</span>
       ${o.field ? "" : `<span class="row-value t-body" data-val-for="${k}"></span>`}
-      <input type="range" data-key="${k}" data-range min="${min}" max="${max}" step="${step}">
+      <input type="range" autocomplete="off" data-key="${k}" data-range min="${min}" max="${max}" step="${step}">
       ${o.field ? `<label class="field mono sm-field"><input data-key="${k}" type="number" placeholder=" " step="${step}" aria-label="${label}"></label>` : ""}
     </div>`,
   panel: (title, body, hint) => `<div class="section"><div class="panel"><h2 class="panel-title t-title">${title}</h2>${body}${hint ? `<p class="hint t-small">${hint}</p>` : ""}</div></div>`,
@@ -953,6 +1017,18 @@ function coerce(key, raw, input) {
   return raw;
 }
 function setPct(r) { const mn = +r.min, mx = +r.max; r.style.setProperty("--f", mx > mn ? (r.value - mn) / (mx - mn) : 0); }
+/* Safeguard: the filled part of every slider is recomputed from the slider's real value on any input event,
+   on page show, and once after load, so the fill can never disagree with the thumb. */
+function syncRanges() {
+  $$("input[type=range][data-range]").forEach((r) => {
+    setPct(r);
+    const lab = r.dataset.key && $(`[data-val-for="${r.dataset.key}"]`);
+    if (lab && (lab.textContent === "" || +lab.textContent !== +r.value)) lab.textContent = r.value;
+  });
+}
+document.addEventListener("input", (e) => { if (e.target.matches && e.target.matches("input[type=range][data-range]")) setPct(e.target); }, true);
+window.addEventListener("pageshow", () => setTimeout(syncRanges, 0));
+window.addEventListener("load", () => setTimeout(syncRanges, 300));
 
 function writeControls(key) {
   const v = S.cfg[key];
@@ -1231,6 +1307,7 @@ function bindCt() {
 }
 const scheduleCtInfo = debounce(() => { $$("#ctList .ct-item").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.path === S.cfg.continue_from_lora))); refreshCtInfo(); }, 400);
 
+function startIcon() { return icon(document.body.dataset.mode === "continue" ? "resume" : "play"); }
 function startLabel() { return document.body.dataset.mode === "continue" ? "Continue training" : "Start training"; }
 
 function setMode(m) {
@@ -1241,7 +1318,7 @@ function setMode(m) {
   if (m === "data") { refreshDmStats(); renderDmStatus(); }
   if (m === "continue") { refreshCtList(); refreshDataset(); }
   if (S.status) renderStatus(S.status);
-  $$('[data-act="start"]').forEach((b) => { if (!S.status) b.innerHTML = icon("play") + startLabel(); });
+  $$('[data-act="start"]').forEach((b) => { if (!S.status) b.innerHTML = startIcon() + startLabel(); });
   requestAnimationFrame(redrawAll);
 }
 $("#modeSeg").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setMode(b.dataset.mode); });
@@ -1388,7 +1465,7 @@ function renderStatus(st) {
   const chip = $("#statusChip"); chip.textContent = label; chip.className = "status " + tone;
   $("#phaseText").textContent = st.phase || "";
   const active = ACTIVE.has(st.status);
-  $$('[data-act="start"]').forEach((b) => { b.disabled = active; b.innerHTML = icon("play") + startLabel(); });
+  $$('[data-act="start"]').forEach((b) => { b.disabled = active; b.innerHTML = startIcon() + startLabel(); });
   $$('[data-act="stop"]').forEach((b) => { b.disabled = !active || st.status === "stopping"; b.innerHTML = icon("stop") + (st.status === "stopping" ? "Stopping…" : "Stop"); });
   if (S.lastCtStatus !== st.status) {
     S.lastCtStatus = st.status;
@@ -1960,7 +2037,7 @@ async function boot() {
   const tags = $("#tags");
   if (d.demo) tags.appendChild(el("span", "tag demo t-label", "DEMO · simulated training"));
   bindForm();
-  $$('[data-act="start"]').forEach((b) => (b.innerHTML = icon("play") + startLabel()));
+  $$('[data-act="start"]').forEach((b) => (b.innerHTML = startIcon() + startLabel()));
   $$('[data-act="stop"]').forEach((b) => { b.innerHTML = icon("stop") + "Stop"; b.disabled = true; });
   refreshDataset();
   let m0 = "train"; try { m0 = localStorage.getItem("easytrainer-mode") || "train"; } catch (e) {}
