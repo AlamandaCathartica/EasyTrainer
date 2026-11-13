@@ -19,6 +19,7 @@ Monitoring comes from three places:
 """
 import argparse
 import collections
+import hashlib
 import json
 import math
 import mimetypes
@@ -138,7 +139,31 @@ PRESETS = {
   "sdxl": (f"{HF}/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors", None, False),
 }
 VAE_URL = f"{HF}/stabilityai/sdxl-vae/resolve/main/sdxl_vae.safetensors"
-REPO = "https://github.com/hollowstrawberry/LoRA_Easy_Training_scripts_Backend"
+# The trainer is bundled in vendor/trainer (sd-scripts + the backend's installer and custom optimizers,
+# see vendor/README.md). Nothing is cloned from GitHub: it is copied from there.
+VENDOR_TRAINER = os.path.join(PARENT, "vendor", "trainer")
+VENDOR_IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc")
+# Bundled files that define the Python environment. When they change, the venv is rebuilt.
+ENV_FILES = ("installer.py", "requirements.txt", "sd_scripts/requirements.txt", "sd_scripts/setup.py", "custom_scheduler")
+
+
+def vendor_fingerprint(*rels):
+  """Short hash of bundled files/folders (paths relative to vendor/trainer)."""
+  h = hashlib.sha256()
+  for rel in rels:
+    top = os.path.join(VENDOR_TRAINER, rel)
+    files = [top] if os.path.isfile(top) else sorted(
+      os.path.join(dp, f) for dp, dn, fn in os.walk(top) if "__pycache__" not in dp for f in fn if not f.endswith(".pyc"))
+    for p in files:
+      h.update(os.path.relpath(p, VENDOR_TRAINER).replace(os.sep, "/").encode() + b"\0")
+      with open(p, "rb") as f:
+        h.update(f.read().replace(b"\r\n", b"\n") + b"\0")   # same hash for Windows and Linux checkouts
+  return h.hexdigest()[:12]
+
+
+def copy_vendor(sub, dst):
+  """Copies vendor/trainer/<sub> into dst (existing files are overwritten, a venv inside dst is kept)."""
+  shutil.copytree(os.path.join(VENDOR_TRAINER, sub), dst, dirs_exist_ok=True, ignore=VENDOR_IGNORE)
 
 ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 TQDM_ANY = re.compile(r"\d+%\|")
@@ -1153,11 +1178,16 @@ class Trainer:
     for d in (paths["main"], paths["trainer"], paths["config"], paths["output"], paths["logs"], paths["models"]):
       os.makedirs(d, exist_ok=True)
 
-    # 1) install the trainer (same as the XL notebook; this needs internet) -----------
+    # 1) install the trainer from vendor/trainer (pip needs internet, the code itself is bundled) ----
     marker = os.path.join(paths["trainer"], ".gui_installed")
+    env_id = vendor_fingerprint(*ENV_FILES)
     if cfg["install_mode"] == "online":
-      if os.path.exists(marker) and os.path.exists(paths["venv_python"]):
-        self.add_log("✅ Trainer already installed in this session.", "ok")
+      if os.path.exists(paths["venv_python"]) and os.path.exists(marker) and open(marker).read().strip() == env_id:
+        try:
+          copy_vendor("", paths["trainer"])      # picks up edits made to the bundled code, keeps the venv
+        except OSError as e:
+          self.add_log(f"Could not refresh the bundled code: {e}", "warn")
+        self.add_log("✅ Trainer already installed (bundled code refreshed).", "ok")
       else:
         self.set_status("installing", "Installing trainer…")
         self.add_log("🏭 Installing trainer…", "ok")
@@ -1165,11 +1195,10 @@ class Trainer:
         ok = self._install(cfg, paths)
         if self._check_stopped() or not ok:
           return
-        open(marker, "w").write("ok")
+        open(marker, "w").write(env_id)
         self.add_log(f"✅ Installation finished in {int(now() - t0)} seconds.", "ok")
     elif not os.path.exists(paths["venv_python"]):
       return self._fail(f"Install mode is 'Installed' but {paths['repo']} has no venv.")
-    self.patch_wandb(paths, cfg)
     if self._check_stopped():
       return
 
@@ -1253,15 +1282,16 @@ class Trainer:
         return False
     if os.path.isdir(trainer):
       shutil.rmtree(trainer, ignore_errors=True)
-    if self.stream(["git", "clone", REPO, trainer]) != 0:
-      if not self.stop_requested:
-        self._fail("git clone failed (no internet?).")
+    try:
+      copy_vendor("", trainer)
+    except OSError as e:
+      self._fail(f"Could not copy the bundled trainer from {VENDOR_TRAINER}: {e}")
       return False
-    script = os.path.join(trainer, "colab_install.sh")
-    os.chmod(script, 0o755)
-    if self.stream(["bash", script], cwd=trainer) != 0:
+    self.add_log("📦 Using the trainer bundled in vendor/trainer (nothing to clone).", "ok")
+    py = shutil.which("python3.10") or sys.executable
+    if self.stream([py, "-u", os.path.join(trainer, "installer.py")], cwd=trainer) != 0:
       if not self.stop_requested:
-        self._fail("colab_install.sh failed. See the log.")
+        self._fail("installer.py failed. See the log.")
       return False
     for c in ([paths["venv_pip"], "uninstall", "-y", "rich"], [paths["venv_pip"], "install", "tqdm==4.67.1"]):  # fix logging
       self.stream(c)
@@ -1269,37 +1299,13 @@ class Trainer:
     return not self.stop_requested
 
   def patch_sources(self, kohya):
-    """Same patches the notebook applies with sed (all idempotent)."""
-    def edit(rel, fn):
-      p = rel if os.path.isabs(rel) else os.path.join(kohya, rel)
-      if not os.path.exists(p):
-        return
-      s = open(p, encoding="utf-8").read()
-      n = fn(s)
-      if n != s:
-        open(p, "w", encoding="utf-8").write(n)
-    edit("library/train_util.py", lambda s: s if "LOAD_TRUNCATED_IMAGES" in s else s.replace(
-      "from PIL import Image", "from PIL import Image, ImageFile\nImageFile.LOAD_TRUNCATED_IMAGES=True"))
-    edit("library/train_util.py", lambda s: s.replace("{:06d}", "{:02d}"))
-    edit("train_network.py", lambda s: s.replace(
-      '"." + args.save_model_as)', '"-{:02d}.".format(num_train_epochs) + args.save_model_as)'))
+    """Patches the installed packages (idempotent). The patches to sd-scripts itself are part of vendor/."""
     import glob
     for p in glob.glob(os.path.join(kohya, "venv/lib/python3*/site-packages/diffusers/utils/deprecation_utils.py")):
-      edit(p, lambda s: s.replace("if version.parse", "if False:#"))
-    for rel in ("library/lpw_stable_diffusion.py", "library/sdxl_lpw_stable_diffusion.py"):
-      edit(rel, lambda s: s.replace("from transformers import CLIPFeatureExtractor",
-                                    "from transformers import CLIPImageProcessor as CLIPFeatureExtractor"))
-
-  def patch_wandb(self, paths, cfg):
-    if not cfg["wandb_key"].strip():
-      return
-    for rel in ("train_network.py", "sdxl_train.py"):
-      p = os.path.join(paths["repo"], rel)
-      if os.path.exists(p):
-        s = open(p, encoding="utf-8").read()
-        n = s.replace("accelerator.log(logs, step=epoch + 1)", "")
-        if n != s:
-          open(p, "w", encoding="utf-8").write(n)
+      src = open(p, encoding="utf-8").read()
+      new = src.replace("if version.parse", "if False:#")
+      if new != src:
+        open(p, "w", encoding="utf-8").write(new)
 
   def _rex_args(self, cfg, paths, info):
     """Port of calculate_rex_steps(); the bucket maths needs sd-scripts, so it runs in its venv."""
@@ -1483,8 +1489,7 @@ SAMPLER = Sampler(TRAINER)
 # dataset maker: auto tagger, activation tag, tag statistics
 # (port of steps 4, 5 and "Analyze Tags" of Dataset_Maker.ipynb)
 # --------------------------------------------------------------------------
-TAGGER_REPO = "https://github.com/kohya-ss/sd-scripts"
-TAGGER_COMMIT = "e89653975ddf429cdf0c0fd268da0a5a3e8dba1f"   # same pin as Dataset_Maker.ipynb
+# (the tagger runs from the sd-scripts bundled in vendor/trainer, in its own venv)
 TAGGER_BOTH = ["SmilingWolf/wd-eva02-large-tagger-v3", "SmilingWolf/wd-vit-large-tagger-v3"]
 TAGGER_MODELS = {
   "both": TAGGER_BOTH,
@@ -1640,7 +1645,7 @@ class Tagger:
     kohya = os.path.join(base, "kohya")
     return {"base": base, "kohya": kohya, "python": os.path.join(kohya, "venv", "bin", "python"),
             "pip": os.path.join(kohya, "venv", "bin", "pip"),
-            "marker": os.path.join(kohya, f".easytrainer_installed_{TAGGER_COMMIT[:8]}")}
+            "marker": os.path.join(kohya, f".easytrainer_installed_{vendor_fingerprint('sd_scripts/requirements.txt')}")}
 
   def add_log(self, text, level=None):
     if level is None:
@@ -1845,10 +1850,14 @@ class Tagger:
   def _install(self):
     d = self.dirs()
     if os.path.isfile(d["marker"]) and os.path.isfile(d["python"]):
+      try:
+        copy_vendor("sd_scripts", d["kohya"])    # picks up edits made to the bundled code, keeps the venv
+      except OSError as e:
+        self.add_log(f"Could not refresh the bundled code: {e}", "warn")
       self.add_log("✅ Tagger already installed in this session.", "ok")
       return True
     self.set_status("installing", "Installing the tagger (first time only, a few minutes)…")
-    self.add_log("🏭 Installing the tagger (same pinned sd-scripts as the Dataset Maker notebook)…", "ok")
+    self.add_log("🏭 Installing the tagger (bundled sd-scripts, nothing to clone)…", "ok")
     can_apt = CFG["colab"] or (hasattr(os, "geteuid") and os.geteuid() == 0)
     if can_apt:
       for c in (["apt-get", "-y", "update", "-qq"], ["apt-get", "install", "-y", "python3.10-venv", "-qq"]):
@@ -1861,10 +1870,13 @@ class Tagger:
       return self._stopped() or False
     os.makedirs(d["base"], exist_ok=True)
     shutil.rmtree(d["kohya"], ignore_errors=True)
+    try:
+      copy_vendor("sd_scripts", d["kohya"])
+    except OSError as e:
+      self._fail(f"Could not copy the bundled sd-scripts from {VENDOR_TRAINER}: {e}")
+      return False
     py = shutil.which("python3.10") or sys.executable
     steps = [
-      (["git", "clone", TAGGER_REPO, d["kohya"]], d["base"]),
-      (["git", "reset", "--hard", TAGGER_COMMIT], d["kohya"]),
       ([py, "-m", "venv", "venv"], d["kohya"]),
       ([d["pip"], "install", "-r", "requirements.txt"], d["kohya"]),
       ([d["pip"], "install", "fairscale==0.4.13", "timm==0.6.12"], d["kohya"]),

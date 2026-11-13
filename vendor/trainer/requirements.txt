@@ -1,0 +1,13 @@
+# Extra packages for the trainer venv. Installed AFTER sd_scripts/requirements.txt (see installer.py),
+# so the pins below win over any overlapping pin there (pytorch_optimizer is the one that overlaps).
+#
+# Taken from LoRA_Easy_Training_scripts_Backend/requirements.txt. Removed because they only served
+# that project's web server, which EasyTrainer does not use: starlette, uvicorn[standard],
+# pyngrok, pycloudflared, requests.
+dadaptation
+wandb
+scipy
+came-pytorch
+lycoris-lora==3.0.1.dev10
+pytorch_optimizer==3.1.2
+wheel

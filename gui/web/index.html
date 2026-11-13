@@ -1050,7 +1050,7 @@ function applyConditions() {
   const hint = $("#envHint");
   if (hint) hint.textContent = {
     offline: "Installs only from the frozen bundle in your Drive (built with Build_Offline_Bundle.ipynb). Nothing is downloaded.",
-    online: "Clones sd-scripts and pip-installs from the internet, like the original notebook.",
+    online: "Copies the sd-scripts bundled with EasyTrainer and pip-installs its packages (internet is only needed for pip).",
     skip: "Use this if sd-scripts and its dependencies are already installed in this runtime.",
   }[S.cfg.install_mode] || "";
 }

@@ -41,6 +41,8 @@ A simple web interface for training **Stable Diffusion XL LoRA and LoCon** model
 
 You do not need to upload any files. The code is downloaded automatically each time you run the cell, and the link is protected by a private token.
 
+Everything the trainer needs (sd-scripts, the custom optimizers and the installer) is bundled in [`vendor/`](vendor/README.md), so nothing else is cloned from GitHub. Only the pip packages are downloaded.
+
 ![System and config tab](assets/gui-system.png)
 
 ## Run it locally
