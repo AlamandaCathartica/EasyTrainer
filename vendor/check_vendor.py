@@ -30,6 +30,8 @@ REQUIRED = [                                         # started by the GUI / need
   "sd_scripts/requirements.txt", "sd_scripts/setup.py", "sd_scripts/LICENSE.md",
   "sd_scripts/sdxl_train_network.py", "sd_scripts/train_network.py", "sd_scripts/networks/lora.py",
   "sd_scripts/finetune/tag_images_by_wd14_tagger.py", "sd_scripts/library/train_util.py",
+  "sd_scripts/finetune/make_captions.py", "sd_scripts/finetune/blip/blip.py", "sd_scripts/finetune/blip/med.py",
+  "sd_scripts/finetune/blip/vit.py", "sd_scripts/finetune/blip/med_config.json",   # BLIP photo captions (Dataset_Maker)
 ]
 
 

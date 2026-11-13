@@ -9,7 +9,8 @@ vendor/trainer/
   installer.py          creates sd_scripts/venv and pip-installs everything (no git)
   requirements.txt      extra packages, installed after sd_scripts/requirements.txt
   custom_scheduler/     LoraEasyCustomOptimizer: the Came optimizer and the Rex scheduler
-  sd_scripts/           the part of sd-scripts the GUI uses (training, LoRA network, WD14 tagger)
+  sd_scripts/           the part of sd-scripts used by the GUI and the notebooks (training, LoRA network,
+                        WD14 tagger, BLIP captioning)
   LICENSE               GPL-3.0 (backend)
 vendor/check_vendor.py  checks that the bundle is self-contained
 ```
@@ -22,7 +23,8 @@ vendor/check_vendor.py  checks that the bundle is self-contained
 | `trainer/custom_scheduler/`, `trainer/installer.py`, `trainer/requirements.txt` | LoRA_Easy_Training_scripts_Backend | `main` snapshot, GPL-3.0 (`LICENSE`) |
 
 Only the files the GUI needs were kept: the 50-file import closure of `sdxl_train_network.py`,
-`networks/lora.py` and `finetune/tag_images_by_wd14_tagger.py` (1.1 MB of the 20 MB repo). The backend's web
+`networks/lora.py` and `finetune/tag_images_by_wd14_tagger.py`, plus `finetune/make_captions.py` with its
+`finetune/blip/` folder (BLIP photo captions, used by `Dataset_Maker.ipynb`). The backend's web
 server (`main.py`, `utils/`, tunnels), the Windows files and the other models/scripts of sd-scripts are not here.
 
 ## Changes made to the original files
@@ -56,5 +58,20 @@ Copy the new files over `vendor/trainer/sd_scripts`, re-apply the three patches 
 `python vendor/check_vendor.py`. A new import that is missing from the bundle is reported there instead of
 failing in the middle of a training run.
 
-`Lora_Trainer_XL.ipynb`, `Dataset_Maker.ipynb` and the offline-bundle files are standalone Colab notebooks
-that are not part of the GUI; they still clone their own copies.
+## BLIP and transformers
+
+`finetune/blip/med.py` imports modules that older `transformers` releases have (`transformers.file_utils`, ...). It has
+not been run against the `transformers` pinned by this sd-scripts. `Dataset_Maker.ipynb` therefore installs
+`transformers==4.44.0` and `huggingface-hub<1.0` into its venv, and only when "Photo captions" is chosen. Anime tags
+(WD14) do not need that.
+
+## Notebooks
+
+`Dataset_Maker.ipynb` and `Lora_Trainer_XL.ipynb` copy their code from `vendor/trainer` instead of cloning it. They need
+the EasyTrainer folder on Colab: put it in `/content/EasyTrainer` or your Drive (`MyDrive/EasyTrainer`), or set
+`EASYTRAINER_REPO` at the top of the setup code to the URL of your own repo and the notebook clones it.
+`Lora_Trainer_XL.ipynb` runs `installer.py` the same way the GUI does, and no longer applies the `sed` patches that are
+now part of `vendor/`.
+
+`Build_Offline_Bundle.ipynb` and `offline_bundle.py` are the separate legacy offline-bundle system and still use their
+own downloads and forks.
