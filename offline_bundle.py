@@ -8,6 +8,9 @@ Two phases:
                        source at a pinned commit, and the .deb files for aria2
                        into a bundle folder (default: Google Drive).
                        Writes MANIFEST.json with SHA-256 of every file.
+                       The source code is NOT downloaded: it is packed from the
+                       copies bundled in vendor/legacy (uYouUs sd-scripts,
+                       qaneel kohya-trainer), so only pip and apt need the net.
 
   install(profile)  -> run on every session. Uses ONLY the bundle:
                        pip --no-index --find-links, local source tarball,
@@ -28,14 +31,17 @@ import urllib.request
 
 DEFAULT_BUNDLE_ROOT = "/content/drive/MyDrive/Loras/_offline_bundle"
 HERE = os.path.dirname(os.path.abspath(__file__))
+# Where the EasyTrainer folder (with vendor/legacy) may be. HERE is checked first.
+EASYTRAINER_DIRS = [HERE, "/content/EasyTrainer", "/content/drive/MyDrive/EasyTrainer",
+                    "/content/drive/MyDrive/Loras/EasyTrainer", os.path.join(DEFAULT_BUNDLE_ROOT, "EasyTrainer")]
 
 # Exact pins. Anything not listed here is resolved ONCE at build time and then
 # frozen into requirements.lock, so it can never drift afterwards.
 PROFILES = {
   "sd15": {
     "python": "3.10",   # Colab python at time of freezing; checked at install
-    "source_repo": "uYouUs/sd-scripts",
-    "source_commit": "",  # FILL IN (build() resolves HEAD and records it if empty)
+    "source_repo": "uYouUs/sd-scripts",   # where vendor/legacy/uyouus_sd_scripts came from (information only)
+    "source_dir": "vendor/legacy/uyouus_sd_scripts",
     "torch_index": "https://download.pytorch.org/whl/cu121",
     "torch_requirements": ["torch==2.4.0", "torchvision==0.19.0", "xformers==0.0.27.post2", "triton==3.0.0"],
     "requirements": [
@@ -53,7 +59,7 @@ PROFILES = {
   "sd15_es": {  # Spanish_Lora_Trainer keeps its own torch/xformers pair (torch 2.4.1 <-> xformers 0.0.28.post1)
     "python": "3.10",
     "source_repo": "uYouUs/sd-scripts",
-    "source_commit": "",
+    "source_dir": "vendor/legacy/uyouus_sd_scripts",
     "torch_index": "https://download.pytorch.org/whl/cu121",
     "torch_requirements": ["torch==2.4.1", "torchvision==0.19.1", "xformers==0.0.28.post1", "triton==3.0.0"],
     "requirements": None,  # filled below from sd15
@@ -63,7 +69,7 @@ PROFILES = {
   "xl_legacy": {
     "python": "3.10",
     "source_repo": "qaneel/kohya-trainer",
-    "source_commit": "",
+    "source_dir": "vendor/legacy/qaneel_kohya_trainer",
     "torch_index": "https://download.pytorch.org/whl/cu121",
     "torch_requirements": ["torch==2.5.1+cu121", "xformers==0.0.28.post3"],
     "requirements": [
@@ -102,6 +108,33 @@ def _sha256(path):
 
 def _bundle_dir(profile, root):
   return os.path.join(root or DEFAULT_BUNDLE_ROOT, profile)
+
+
+def _find_source_dir(rel):
+  """Finds a bundled source folder (vendor/legacy/...) next to this file or in a known EasyTrainer location."""
+  for base in EASYTRAINER_DIRS:
+    d = os.path.join(base, rel)
+    if os.path.isfile(os.path.join(d, "requirements.txt")):
+      return d
+  raise FileNotFoundError(f"{rel} was not found. Put the EasyTrainer folder (with vendor/legacy) in one of: "
+                          f"{EASYTRAINER_DIRS}")
+
+
+def _pack_source(src_dir, tar_path):
+  """Writes src_dir as a tar.gz with one top-level folder (the layout install() expects) and returns a content id."""
+  h = hashlib.sha256()
+  top = os.path.basename(os.path.normpath(src_dir))
+  with tarfile.open(tar_path, "w:gz") as t:
+    for dp, dn, fn in os.walk(src_dir):
+      dn[:] = sorted(d for d in dn if d != "__pycache__")
+      for f in sorted(fn):
+        if f.endswith(".pyc"):
+          continue
+        full = os.path.join(dp, f)
+        rel = os.path.relpath(full, src_dir).replace(os.sep, "/")
+        h.update(rel.encode() + b"\0" + open(full, "rb").read().replace(b"\r\n", b"\n") + b"\0")
+        t.add(full, arcname=f"{top}/{rel}")
+  return h.hexdigest()[:12]
 
 
 def _py_tag():
@@ -159,16 +192,12 @@ def build(profile, root=None, force=False):
   for d in (wheels, debs):
     os.makedirs(d, exist_ok=True)
 
-  # 1) source code at an exact commit (tarball, no git needed later)
+  # 1) source code: packed from the copy bundled in vendor/legacy (nothing is downloaded from GitHub)
   repo = cfg["source_repo"]
-  commit = cfg["source_commit"]
-  if not commit:
-    out = subprocess.run(["git", "ls-remote", f"https://github.com/{repo}", "HEAD"],
-                         check=True, capture_output=True, text=True).stdout
-    commit = out.split()[0]
-    print(f"source_commit was empty; freezing {repo} at current HEAD {commit}")
+  src_dir = _find_source_dir(cfg["source_dir"])
   tar_path = os.path.join(bdir, "source.tar.gz")
-  urllib.request.urlretrieve(f"https://github.com/{repo}/archive/{commit}.tar.gz", tar_path)
+  commit = "bundled-" + _pack_source(src_dir, tar_path)
+  print(f"Packed {src_dir} as {commit}")
 
   # 2) wrapper scripts: use the copies shipped in THIS repo, not raw GitHub main
   wdir = os.path.join(bdir, "wrappers")
@@ -237,7 +266,7 @@ def build(profile, root=None, force=False):
       if not os.path.exists(dest):
         urllib.request.urlretrieve(u, dest)
 
-  info = {"profile": profile, "source_repo": repo, "source_commit": commit}
+  info = {"profile": profile, "source_repo": repo, "source_dir": cfg["source_dir"], "source_commit": commit}
   json.dump(info, open(os.path.join(bdir, "source.json"), "w"), indent=1)
   manifest = _write_manifest(bdir)
   size = sum(os.path.getsize(os.path.join(bdir, k)) for k in manifest["files"]) / 1e9
