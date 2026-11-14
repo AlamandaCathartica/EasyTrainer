@@ -68,10 +68,25 @@ not been run against the `transformers` pinned by this sd-scripts. `Dataset_Make
 ## Notebooks
 
 `Dataset_Maker.ipynb` and `Lora_Trainer_XL.ipynb` copy their code from `vendor/trainer` instead of cloning it. They need
-the EasyTrainer folder on Colab: put it in `/content/EasyTrainer` or your Drive (`MyDrive/EasyTrainer`), or set
-`EASYTRAINER_REPO` at the top of the setup code to the URL of your own repo and the notebook clones it.
+
+the EasyTrainer folder on Colab: put it in `/content/EasyTrainer` or your Drive (`MyDrive/EasyTrainer`), or leave it
+to the notebook: `EASYTRAINER_REPO` at the top of the setup code is set to
+`https://github.com/AlamandaCathartica/EasyTrainer` and is cloned when the folder is not found.
+The repo must contain `vendor/` (push the updated project first).
 `Lora_Trainer_XL.ipynb` runs `installer.py` the same way the GUI does, and no longer applies the `sed` patches that are
 now part of `vendor/`.
 
-`Build_Offline_Bundle.ipynb` and `offline_bundle.py` are the separate legacy offline-bundle system and still use their
-own downloads and forks.
+## legacy/
+
+The sources of the legacy offline-bundle system (`offline_bundle.py`, `Build_Offline_Bundle.ipynb`) live here, so
+building a bundle no longer downloads them from GitHub (pip wheels and the aria2 `.deb` files still need the internet):
+
+| Folder | Source | Used by profile |
+|---|---|---|
+| `legacy/uyouus_sd_scripts/` | uYouUs/sd-scripts fork | `sd15`, `sd15_es` |
+| `legacy/qaneel_kohya_trainer/` | qaneel/kohya-trainer fork | `xl_legacy` |
+
+The exact upstream commits of the uploaded copies are not known, so the bundle records `bundled-<content hash>` as the
+source id. Removed to keep the folders small: `bitsandbytes_windows/`, `docs/`, `.github/`, the Japanese README and the
+Colab notebooks of the qaneel repo. Nothing in `legacy/` is used by the GUI or by the two notebooks above.
+This was only syntax- and packaging-checked; no bundle has been built or installed from it yet.
