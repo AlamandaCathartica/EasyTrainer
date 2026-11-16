@@ -42,10 +42,13 @@ no Windows branches) and `requirements.txt` lost the packages only the backend s
 
 ## Things to know
 
-* **PyTorch version.** This sd-scripts documents *PyTorch 2.6.0 or later* as required, but `installer.py`
-  still installs the stack it always did (torch 2.5.1 / CUDA 12.4, `TORCH_STACK` block at the top). This has not
-  been run on a GPU yet. If training fails on import or on a missing torch API, bump that block (it is
-  installed with `--no-deps`, so the `nvidia-*` pins must match the torch build).
+* **PyTorch version.** This sd-scripts needs *PyTorch 2.6.0 or later*. `installer.py` installs a matched
+  torch 2.7.1 / torchvision 0.22.1 / xformers 0.0.31.post1 set (CUDA 12.6, `TORCH_STACK` block at the top), writes
+  those versions to `sd_scripts/venv/constraints.txt` and runs every later pip step with `-c constraints.txt`, so no
+  requirement can upgrade torch and leave torchvision behind (that mismatch shows up as
+  `RuntimeError: operator torchvision::nms does not exist`). The installer imports torch, torchvision and
+  `transformers.CLIPTextModel` at the end and stops with the package list if that fails. To change the torch
+  version, change the three versions together (xformers wheels are built for exactly one torch version).
 * `requirements.txt` is installed last and pins `pytorch_optimizer==3.1.2` (needed by `custom_scheduler`),
   overriding the `3.10.0` pinned by sd-scripts.
 * Editing files under `vendor/trainer` takes effect on the next training run. Changing `installer.py`,

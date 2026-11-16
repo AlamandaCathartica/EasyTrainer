@@ -23,32 +23,19 @@ import sys
 from pathlib import Path
 
 # --------------------------------------------------------------------------------------
-# TORCH_STACK: the only version-sensitive block. Installed with --no-deps, so every
-# nvidia-* library has to be listed here and has to match the torch build.
-# NOTE: these are the pins the original installer shipped with (torch 2.5.1 / cu124).
-#       The bundled sd-scripts documents "PyTorch 2.6.0 or later" as its requirement;
-#       see vendor/README.md before changing anything here.
+# TORCH_STACK: the only version-sensitive block.
+# torch, torchvision and xformers are a matched set (each torchvision / xformers wheel is built
+# against ONE torch version). The bundled sd-scripts needs PyTorch >= 2.6.0.
+# The three versions are also written to constraints.txt, and every later pip step runs with
+# `-c constraints.txt`, so nothing in requirements.txt can silently upgrade torch while leaving
+# torchvision behind ("operator torchvision::nms does not exist"). If a requirement really needs
+# another torch, pip stops with a resolver conflict that names the package.
 # --------------------------------------------------------------------------------------
-TORCH_INDEX = "https://download.pytorch.org/whl/cu124"
-TORCH_PACKAGES = ["torch==2.5.1", "torchvision==0.20.1"]
-XFORMERS = "xformers==0.0.29.post1"
-TORCH_DEPS = [
-    "nvidia-cudnn-cu12==9.1.1.17",  # fix non-existent 9.1.0.70
-    "typing-extensions==4.15.0",
-    "filelock", "sympy", "networkx", "jinja2", "fsspec", "numpy", "pillow",
-    "nvidia-cuda-nvrtc-cu12==12.4.127",
-    "nvidia-cuda-runtime-cu12==12.4.127",
-    "nvidia-cuda-cupti-cu12==12.4.127",
-    "nvidia-cublas-cu12==12.4.5.8",
-    "nvidia-cufft-cu12==11.2.1.3",
-    "nvidia-curand-cu12==10.3.5.147",
-    "nvidia-cusolver-cu12==11.6.1.9",
-    "nvidia-cusparse-cu12==12.3.1.170",
-    "nvidia-nccl-cu12==2.21.5",
-    "nvidia-nvtx-cu12==12.4.127",
-    "nvidia-nvjitlink-cu12==12.4.127",
-    "triton==3.1.0",
-]
+TORCH_INDEX = "https://download.pytorch.org/whl/cu126"
+PYPI_INDEX = "https://pypi.org/simple"  # the nvidia-* / triton dependencies of torch come from here
+TORCH_VERSION = "2.7.1"
+TORCHVISION_VERSION = "0.22.1"
+XFORMERS_VERSION = "0.0.31.post1"  # built for torch 2.7.1
 
 ACCELERATE_CONFIG = """\
 command_file: null
@@ -88,13 +75,33 @@ def setup_accelerate():
     path.write_text(ACCELERATE_CONFIG)
 
 
-def setup_venv(pip):
-    pip_install(pip, "-U", *TORCH_PACKAGES, "--no-deps", "--index-url", TORCH_INDEX)
-    pip_install(pip, "-U", *TORCH_DEPS, "--extra-index-url", TORCH_INDEX)
-    pip_install(pip, "-U", XFORMERS, "--no-deps", "--index-url", TORCH_INDEX)
-    pip_install(pip, "-U", "-r", "requirements.txt")             # cwd = sd_scripts
-    pip_install(pip, "-U", "../custom_scheduler/.")
-    pip_install(pip, "-U", "-r", "../requirements.txt")
+def setup_venv(venv_dir):
+    pip = os.path.join(venv_dir, "bin", "pip")
+    python = os.path.join(venv_dir, "bin", "python")
+    constraints = os.path.abspath(os.path.join(venv_dir, "constraints.txt"))
+    with open(constraints, "w") as f:
+        f.write(f"torch=={TORCH_VERSION}\ntorchvision=={TORCHVISION_VERSION}\nxformers=={XFORMERS_VERSION}\n")
+
+    # 1. the matched torch stack, with its dependencies (nvidia-*, triton, ...) resolved by pip
+    pip_install(pip, f"torch=={TORCH_VERSION}", f"torchvision=={TORCHVISION_VERSION}",
+                f"xformers=={XFORMERS_VERSION}", "--index-url", TORCH_INDEX, "--extra-index-url", PYPI_INDEX)
+    check_torch(python)
+    # 2-4. everything else, forbidden from touching the torch stack
+    pip_install(pip, "-U", "-c", constraints, "-r", "requirements.txt")             # cwd = sd_scripts
+    pip_install(pip, "-U", "-c", constraints, "../custom_scheduler/.")
+    pip_install(pip, "-U", "-c", constraints, "-r", "../requirements.txt")
+    check_torch(python, with_transformers=True)
+
+
+def check_torch(python, with_transformers=False):
+    """Fail here, with the versions printed, instead of in the middle of a training run."""
+    code = ("import torch, torchvision; from torchvision.ops import nms; "
+            "print('torch', torch.__version__, '| torchvision', torchvision.__version__, '| cuda build', torch.version.cuda)")
+    if with_transformers:
+        code += "; from transformers import CLIPTextModel"
+    if subprocess.call([python, "-c", code]) != 0:
+        subprocess.call([os.path.join(os.path.dirname(python), "pip"), "list", "--format=freeze"])
+        sys.exit("ERROR: the torch / torchvision / transformers stack in the venv does not import (versions listed above).")
 
 
 def main():
@@ -109,7 +116,7 @@ def main():
     os.chdir(sd_scripts)
     print("creating venv and installing requirements")
     subprocess.check_call([sys.executable, "-m", "venv", "venv"])
-    setup_venv(os.path.join("venv", "bin", "pip"))
+    setup_venv("venv")
     setup_accelerate()
     print("completed installing")
 
