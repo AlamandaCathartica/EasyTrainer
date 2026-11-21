@@ -309,6 +309,8 @@ def dataset_info(cfg, paths=None):
       except OSError as e:
         info["error"] = f"Cannot read {folder}: {e}"
         names = []
+      # ignore sub-folders and hidden/system entries (.ipynb_checkpoints, .DS_Store, Thumbs.db, ...)
+      names = [f for f in names if not is_ignored_entry(folder, f)]
       cap = (cfg.get("caption_extension") or ".txt").strip().lower() or ".txt"
       entry["images"] = sum(1 for f in names if f.lower().endswith(SUPPORTED_IMAGES))
       entry["captions"] = sum(1 for f in names if f.lower().endswith(cap))
@@ -1522,8 +1524,10 @@ def dm_check(cfg, need_images=True):
 def dm_files(folder, exts):
   out = []
   for root, dirs, files in os.walk(folder):
-    dirs.sort()
+    dirs[:] = sorted(d for d in dirs if not d.startswith("."))   # skip .ipynb_checkpoints etc.
     for fn in sorted(files):
+      if fn.startswith("."):
+        continue
       if fn.lower().endswith(exts):
         out.append(os.path.join(root, fn))
   return out
@@ -1988,6 +1992,14 @@ def save_settings(cfg):
 ALLOWED_OUT = set()
 
 
+def is_ignored_entry(folder, name):
+  """True for things that are never dataset files: hidden entries (.ipynb_checkpoints, .DS_Store),
+  Windows junk files and sub-folders."""
+  if name.startswith(".") or name.lower() in ("thumbs.db", "desktop.ini"):
+    return True
+  return os.path.isdir(os.path.join(folder, name))
+
+
 def list_outputs(cfg):
   paths = paths_for(merged(cfg))
   out_dir = paths["output"]
@@ -2133,7 +2145,13 @@ class Handler(BaseHTTPRequestHandler):
     self.send_response(200)
     self.send_header("Content-Type", mimetypes.guess_type(path)[0] or "application/octet-stream")
     self.send_header("Content-Length", str(size))
-    self.send_header("Content-Disposition", f'attachment; filename="{os.path.basename(path)}"')
+    name = os.path.basename(path)
+    ascii_name = re.sub(r'[^A-Za-z0-9._ -]', "_", name.encode("ascii", "ignore").decode() or "") or "download"
+    if "." not in ascii_name and "." in name:
+      ascii_name = "lora" + os.path.splitext(name)[1]
+    # RFC 6266 / 5987: plain-ASCII fallback + UTF-8 percent-encoded real name (http.server headers must be latin-1)
+    self.send_header("Content-Disposition",
+                     f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{urllib.parse.quote(name, safe='')}")
     self.end_headers()
     with open(path, "rb") as f:
       shutil.copyfileobj(f, self.wfile)
